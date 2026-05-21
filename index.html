@@ -692,14 +692,59 @@ const BASE_PEOPLE = [
   { name: 'Keith',     city: 'Austin',   tz: 'America/Chicago',    wake: [6, 1],   peak: [[7, 13], [19, 20], [22, 1]], confidence: 'high', role: 'review',                  lastSeen: '2026-05-20', note: 'Empirical: Discord 40d / 411 msgs (Anismin server, @ablac). Active 06:00-01:00 CDT, dead 02-05. Peaks: morning-midday 07-13 (densest 11-13), dinner spike 19, late block 22-01. 42% weekend (very weekend-active). HIGH confidence, replaces prior estimate.' },
 ];
 
-// --- Roster: BASE_PEOPLE + per-browser add/remove customizations -----------
-// Added people and removals are stored in this browser's localStorage, layered
-// over BASE_PEOPLE so the roster edits persist for this viewer while updates to
-// the base data (hours, notes) still flow through.
+// --- Home / perspective + roster -------------------------------------------
+// The "home" person is whoever's local time the ruler is drawn in. It defaults
+// to the person flagged home:true (Andrew/Vienna) but can be overridden by a
+// URL tag (?as=dee) so a teammate can bookmark a live URL pinned to their own
+// timezone, or by the in-page dropdown (which writes the tag back to the URL).
+//
+// Home is resolved HERE, before the roster is built, because add/remove edits
+// are namespaced per perspective (keyed by home name, like the drag order) so
+// each ?as= view keeps its own roster. Example: Dee can add or remove people on
+// ?as=alias without it touching Andrew's default view.
+const DEFAULT_HOME = (BASE_PEOPLE.find(p => p.home) || BASE_PEOPLE[0]).name;
+function readHomeTagRaw() {
+  const params = new URLSearchParams(location.search);
+  let raw = (params.get('as') || params.get('view') || '').trim().toLowerCase();
+  if (!raw) return null;
+  const ALIASES = { alias: 'dee' };          // old bookmarks: alias -> Dee
+  if (ALIASES[raw]) raw = ALIASES[raw];
+  return raw;
+}
+// Resolve the URL tag to a canonical name from a given people list (or null).
+function resolveHomeAgainst(list) {
+  const raw = readHomeTagRaw();
+  if (!raw) return null;
+  const m = list.find(p => p.name.toLowerCase() === raw);
+  return m ? m.name : null;
+}
+// Initial home from the URL, resolved against BASE_PEOPLE (added people don't
+// exist yet at load). Re-validated against the full roster once it's built.
+let homeName = resolveHomeAgainst(BASE_PEOPLE) || DEFAULT_HOME;
+
+// Roster customizations are stored in this browser's localStorage, layered over
+// BASE_PEOPLE, and namespaced by the active home so each perspective is its own.
+function addedKey()   { return 'tt-added:'   + homeName; }
+function removedKey() { return 'tt-removed:' + homeName; }
 function loadCustom() {
-  let added = [], removed = [];
-  try { const a = JSON.parse(localStorage.getItem('tt-added')   || '[]'); if (Array.isArray(a)) added = a; } catch (e) {}
-  try { const r = JSON.parse(localStorage.getItem('tt-removed') || '[]'); if (Array.isArray(r)) removed = r; } catch (e) {}
+  let added = [], removed = [], haveNamespaced = false;
+  try {
+    const rawA = localStorage.getItem(addedKey());
+    const rawR = localStorage.getItem(removedKey());
+    if (rawA !== null || rawR !== null) {
+      haveNamespaced = true;
+      const a = JSON.parse(rawA || '[]'); if (Array.isArray(a)) added = a;
+      const r = JSON.parse(rawR || '[]'); if (Array.isArray(r)) removed = r;
+    }
+  } catch (e) {}
+  // One-time, per-perspective seed from the old global keys so edits made before
+  // roster went per-view aren't lost. Read-only until a real edit re-saves.
+  if (!haveNamespaced) {
+    try {
+      const a = JSON.parse(localStorage.getItem('tt-added')   || '[]'); if (Array.isArray(a)) added = a;
+      const r = JSON.parse(localStorage.getItem('tt-removed') || '[]'); if (Array.isArray(r)) removed = r;
+    } catch (e) {}
+  }
   return { added, removed };
 }
 function computeRoster() {
@@ -727,7 +772,7 @@ function tzCityGuess(tz) { return (tz.split('/').pop() || tz).replace(/_/g, ' ')
 function addPerson(data) {
   const { added } = loadCustom();
   added.push({ name: data.name, city: data.city, tz: data.tz, wake: data.wake || [8, 22] });
-  try { localStorage.setItem('tt-added', JSON.stringify(added)); } catch (e) {}
+  try { localStorage.setItem(addedKey(), JSON.stringify(added)); } catch (e) {}
   applyRosterChange();
 }
 function removePerson(name) {
@@ -735,10 +780,10 @@ function removePerson(name) {
   const i = added.findIndex(a => a.name === name);
   if (i >= 0) {
     added.splice(i, 1);
-    try { localStorage.setItem('tt-added', JSON.stringify(added)); } catch (e) {}
+    try { localStorage.setItem(addedKey(), JSON.stringify(added)); } catch (e) {}
   } else if (!removed.includes(name)) {
     removed.push(name);
-    try { localStorage.setItem('tt-removed', JSON.stringify(removed)); } catch (e) {}
+    try { localStorage.setItem(removedKey(), JSON.stringify(removed)); } catch (e) {}
   }
   applyRosterChange();
 }
@@ -756,24 +801,10 @@ function applyRosterChange() {
 }
 
 // --- Home / perspective state ----------------------------------------------
-// The "home" person is whoever's local time the ruler is drawn in. It defaults
-// to the person flagged home:true (Andrew/Vienna) but can be overridden by a
-// URL tag (?as=alias) so a teammate can bookmark a live URL pinned to their own
-// timezone, or by the in-page dropdown (which writes the tag back to the URL).
-const DEFAULT_HOME = (PEOPLE.find(p => p.home) || PEOPLE[0]).name;
-
-function readHomeTag() {
-  const params = new URLSearchParams(location.search);
-  let raw = (params.get('as') || params.get('view') || '').trim().toLowerCase();
-  if (!raw) return null;
-  // Backward-compat aliases so old bookmarks keep resolving after renames.
-  const ALIASES = { alias: 'dee' };
-  if (ALIASES[raw]) raw = ALIASES[raw];
-  const match = PEOPLE.find(p => p.name.toLowerCase() === raw);
-  return match ? match.name : null;
-}
-
-let homeName = readHomeTag() || DEFAULT_HOME;
+// homeName, DEFAULT_HOME, and the roster namespace are initialized in the
+// roster block above (before PEOPLE is built). readHomeTag re-resolves the URL
+// tag against the *current* roster, used by popstate / dropdown switches.
+function readHomeTag() { return resolveHomeAgainst(PEOPLE); }
 
 function homePerson() {
   return PEOPLE.find(p => p.name === homeName) || PEOPLE[0];
@@ -1606,7 +1637,17 @@ function setHome(name, fromUser) {
   if (!match) return;
   homeName = match.name;
   HOME_TZ = match.tz;
+  // Perspective changes the roster namespace, so rebuild the people list (and
+  // its drag order) for the newly active ?as= view.
+  PEOPLE = computeRoster();
+  if (!PEOPLE.length) PEOPLE = BASE_PEOPLE.slice();
+  if (!PEOPLE.some(p => p.name === homeName)) {
+    const fb = PEOPLE.find(p => p.home) || PEOPLE[0];
+    homeName = fb.name;
+    HOME_TZ = fb.tz;
+  }
   loadOrder();
+  populateHomeSelect();
   if (fromUser) {
     const params = new URLSearchParams(location.search);
     params.delete('view');
@@ -1688,8 +1729,13 @@ function setupRosterControls() {
     if (e.key === 'Enter') { e.preventDefault(); document.getElementById('ap-add').click(); }
   }));
   document.getElementById('ap-reset').addEventListener('click', () => {
-    if (!confirm('Reset the roster to defaults on this browser? Removes people you added and restores any you removed.')) return;
-    try { localStorage.removeItem('tt-added'); localStorage.removeItem('tt-removed'); } catch (e) {}
+    if (!confirm('Reset this view\'s roster to defaults on this browser? Removes people you added and restores any you removed for ' + homeName + '\'s view.')) return;
+    try {
+      localStorage.removeItem(addedKey());
+      localStorage.removeItem(removedKey());
+      localStorage.removeItem('tt-added');    // legacy global keys
+      localStorage.removeItem('tt-removed');
+    } catch (e) {}
     applyRosterChange();
     panel.hidden = true;
   });
