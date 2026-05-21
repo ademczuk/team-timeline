@@ -682,6 +682,29 @@ function offsetMinutesFromHome(tz, date) {
   return Math.round((otherUTCish - homeUTCish) / 60000);
 }
 
+// Now-anchored axis: originMin is the home minute-of-day mapped to the LEFT edge
+// of the timeline. It is set to "now" each render, so the now-line sits hard
+// against the names column and time rolls forward to the right over 24h.
+let originMin = 0;
+function relMin(homeMin) {
+  return (((homeMin - originMin) % 1440) + 1440) % 1440;
+}
+
+// Place a window (given its start in HOME minutes-of-day and its length) on the
+// now-anchored axis, splitting into two segments if it wraps the right edge.
+function placeWindow(startHomeMin, lengthMin, append) {
+  if (lengthMin <= 0) return;
+  if (lengthMin > 1440) lengthMin = 1440;
+  const rel = relMin(((startHomeMin % 1440) + 1440) % 1440);
+  const end = rel + lengthMin;
+  if (end <= 1440) {
+    append(rel, end);
+  } else {
+    append(rel, 1440);
+    append(0, end - 1440);
+  }
+}
+
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WEEKDAYS_LONG = {
   'Mon':'Mon', 'Tue':'Tue', 'Wed':'Wed', 'Thu':'Thu', 'Fri':'Fri', 'Sat':'Sat', 'Sun':'Sun'
@@ -732,9 +755,10 @@ function buildRuler() {
   const track = document.createElement('div');
   track.className = 'track';
 
-  // Ticks + numbers every 2 hours, plus 24 at right edge.
-  for (let h = 0; h <= 24; h += 2) {
-    const pct = (h / 24) * 100;
+  // Ticks + numbers every 2 home-hours, placed on the now-anchored (rolling)
+  // axis. Labels wrap, so left-to-right reads forward 24h from "now".
+  for (let h = 0; h < 24; h += 2) {
+    const pct = (relMin(h * 60) / 1440) * 100;
     const tick = document.createElement('div');
     tick.className = 'tick major';
     tick.style.left = pct + '%';
@@ -742,10 +766,10 @@ function buildRuler() {
     const num = document.createElement('div');
     num.className = 'hour-num';
     num.style.left = pct + '%';
-    num.textContent = String(h % 24).padStart(2, '0');
-    // Pin the right-most number inside the track edge so it's not clipped.
-    if (h === 24) num.style.transform = 'translate(-100%, -50%)';
-    if (h === 0)  num.style.transform = 'translate(0, -50%)';
+    num.textContent = String(h).padStart(2, '0');
+    // Keep edge labels from clipping at the track boundaries.
+    if (pct < 2)       num.style.transform = 'translate(0, -50%)';
+    else if (pct > 98) num.style.transform = 'translate(-100%, -50%)';
     track.appendChild(num);
   }
 
@@ -917,9 +941,9 @@ function buildPersonRow(person, date) {
   const track = document.createElement('div');
   track.className = 'track';
 
-  // Faint per-row hour ticks (every 2 hours) — these match the Vienna ruler.
-  for (let h = 2; h < 24; h += 2) {
-    const pct = (h / 24) * 100;
+  // Faint per-row hour ticks (every 2 hours) — these match the ruler gridlines.
+  for (let h = 0; h < 24; h += 2) {
+    const pct = (relMin(h * 60) / 1440) * 100;
     const tick = document.createElement('div');
     tick.className = 'tick';
     tick.style.left = pct + '%';
@@ -933,11 +957,10 @@ function buildPersonRow(person, date) {
   // and draw numbers at the multiples-of-3 in the person's LOCAL time.
   // Approach: iterate local hours 0..24 and place each at its Vienna x position.
   for (let lh = 0; lh < 24; lh += 3) {
-    // local hour lh corresponds to Vienna minute = lh*60 - offset
-    let viennaMin = lh * 60 - offset;
-    // Normalize into [0, 1440)
-    viennaMin = ((viennaMin % 1440) + 1440) % 1440;
-    const pct = (viennaMin / 1440) * 100;
+    // local hour lh -> home minute -> rolling-axis position
+    let homeMin = lh * 60 - offset;
+    homeMin = ((homeMin % 1440) + 1440) % 1440;
+    const pct = (relMin(homeMin) / 1440) * 100;
     const num = document.createElement('div');
     num.className = 'local-hour';
     num.style.left = pct + '%';
@@ -945,37 +968,19 @@ function buildPersonRow(person, date) {
     track.appendChild(num);
   }
 
-  // Wake bar: convert wake [wStartLocal, wEndLocal] -> Vienna minutes.
+  // Wake bar: start in home minutes + length, placed on the rolling axis.
   const [wakeStartLocal, wakeEndLocal] = person.wake;
-  // Local wake-start in Vienna minutes-of-day:
-  let vStart = wakeStartLocal * 60 - offset;
-  let vEnd   = wakeEndLocal   * 60 - offset;
-  // Normalize to [0, 1440)
-  vStart = ((vStart % 1440) + 1440) % 1440;
-  vEnd   = ((vEnd   % 1440) + 1440) % 1440;
-
-  if (vEnd > vStart) {
-    appendWakeSegment(track, vStart, vEnd, person);
-  } else {
-    // Wraps past Vienna midnight -> draw two segments
-    appendWakeSegment(track, vStart, 1440, person);
-    appendWakeSegment(track, 0, vEnd, person);
-  }
+  const wakeLen = ((((wakeEndLocal - wakeStartLocal) % 24) + 24) % 24) * 60;
+  placeWindow(wakeStartLocal * 60 - offset, wakeLen,
+    (a, b) => appendWakeSegment(track, a, b, person));
 
   // Peak windows (optional, only on maintainers / data-backed entries)
   if (Array.isArray(person.peak)) {
     for (let i = 0; i < person.peak.length; i++) {
       const [pStartLocal, pEndLocal] = person.peak[i];
-      let pStart = pStartLocal * 60 - offset;
-      let pEnd   = pEndLocal   * 60 - offset;
-      pStart = ((pStart % 1440) + 1440) % 1440;
-      pEnd   = ((pEnd   % 1440) + 1440) % 1440;
-      if (pEnd > pStart) {
-        appendPeakSegment(track, pStart, pEnd, person, i);
-      } else {
-        appendPeakSegment(track, pStart, 1440, person, i);
-        appendPeakSegment(track, 0, pEnd, person, i);
-      }
+      const pLen = ((((pEndLocal - pStartLocal) % 24) + 24) % 24) * 60;
+      placeWindow(pStartLocal * 60 - offset, pLen,
+        (a, b) => appendPeakSegment(track, a, b, person, i));
     }
   }
 
@@ -986,16 +991,10 @@ function buildPersonRow(person, date) {
     const skipToday = person.busyWeekdayOnly && isWeekendTz(person.tz, date);
     if (!skipToday) {
       for (const b of person.busy) {
-        let bs = hhmmToMin(b.s) - offset;
-        let be = hhmmToMin(b.e) - offset;
-        bs = ((bs % 1440) + 1440) % 1440;
-        be = ((be % 1440) + 1440) % 1440;
-        if (be > bs) {
-          appendBusySegment(track, bs, be, person, b);
-        } else {
-          appendBusySegment(track, bs, 1440, person, b);
-          appendBusySegment(track, 0, be, person, b);
-        }
+        const bStart = hhmmToMin(b.s);
+        const bLen = (((hhmmToMin(b.e) - bStart) % 1440) + 1440) % 1440;
+        placeWindow(bStart - offset, bLen,
+          (a, e) => appendBusySegment(track, a, e, person, b));
       }
     }
   }
@@ -1133,6 +1132,9 @@ function fullRender(date) {
   cursorLabels.length = 0;
   statusPills.length = 0;
 
+  // Anchor the rolling axis to "now" (home minutes) for this render.
+  originMin = localMinutesOfDay(HOME_TZ, date);
+
   timelineEl.appendChild(buildRuler());
   for (const person of orderedPeople()) {
     timelineEl.appendChild(buildPersonRow(person, date));
@@ -1149,22 +1151,13 @@ function fullRender(date) {
 }
 
 function updateNowLine(date) {
-  const minutes = localMinutesOfDay(HOME_TZ, date);
-  const pct = (minutes / 1440) * 100;
-  // Position by left%, NOT transform: a percentage translateX resolves against
-  // the element's own 2px width, so it never moves. left% is relative to the
-  // layer width, which is what we want.
-  nowLineEl.style.left = pct + '%';
+  // The rolling axis is anchored to "now" each render, so the now-line lives at
+  // the left edge, hard against the names column.
+  nowLineEl.style.left = '0%';
+  nowLabelEl.style.left = '4px';
+  nowLabelEl.style.right = 'auto';
   const homeParts = localPartsIn(HOME_TZ, date);
   nowLabelEl.textContent = `now ${homeParts.hour}:${homeParts.minute}`;
-  // Flip the label to the left of the line near the right edge so it doesn't clip.
-  if (pct > 88) {
-    nowLabelEl.style.left = 'auto';
-    nowLabelEl.style.right = '4px';
-  } else {
-    nowLabelEl.style.left = '4px';
-    nowLabelEl.style.right = 'auto';
-  }
 }
 
 function updateClocks(date) {
@@ -1265,12 +1258,12 @@ function onTimelineMouseMove(e) {
   // Crosshair line
   crosshairLineEl.style.transform = `translateX(${offsetX}px)`;
 
-  // Local time at this Vienna-x for each person row
-  const viennaMin = Math.round(pct * 1440);
+  // Home minute under the cursor on the rolling axis, then each person's local.
+  const homeMinAtCursor = (originMin + Math.round(pct * 1440)) % 1440;
   for (const label of cursorLabels) {
     const tz = label.dataset.tz;
     const offset = offsetMinutesFromHome(tz, new Date()); // tz - home
-    let local = viennaMin + offset;
+    let local = homeMinAtCursor + offset;
     local = ((local % 1440) + 1440) % 1440;
     const hh = String(Math.floor(local / 60)).padStart(2, '0');
     const mm = String(local % 60).padStart(2, '0');
@@ -1344,16 +1337,10 @@ function updateOverlapBanner(date) {
 // --------------------------------------------------------------------------
 
 function tick() {
-  const now = new Date();
-  const todayKey = homeCalendarDateKey(now);
-  if (todayKey !== lastHomeDateKey) {
-    fullRender(now);
-  } else {
-    updateNowLine(now);
-    updateClocks(now);
-    updateOverlapBanner(now);
-    refreshStatusPills(now);
-  }
+  // Re-anchor the rolling axis to "now" every tick so the now-line stays pinned
+  // to the left edge and the bars scroll left over time. fullRender is cheap
+  // (one ruler + 9 rows).
+  fullRender(new Date());
 }
 
 // --- Perspective dropdown + URL tag ---------------------------------------
