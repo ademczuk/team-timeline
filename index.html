@@ -1,0 +1,1332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Timeline</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --track-bg: #1a1d24;
+    --track-bg-home: #1f2028;
+    --label-bg: #14171d;
+    --border: #232730;
+    --tick: #3a3f4a;
+    --hour-num: #7a8290;
+    --name: #ffffff;
+    --sub: #9aa3b2;
+    --accent: #f5a623;
+    --now: #ff4757;
+    --wake-fill: rgba(46, 204, 113, 0.22);
+    --wake-border: rgba(46, 204, 113, 0.50);
+    --peak-fill: rgba(46, 204, 113, 0.55);
+    --peak-border: rgba(46, 204, 113, 0.85);
+    --maintainer: #6a8cff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--name);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    width: 100%;
+    margin: 0;
+    padding: 14px 18px 18px;
+  }
+  .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 14px 18px;
+    background: var(--track-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 14px;
+  }
+  .header .title {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  .header .home-clock {
+    font-size: 15px;
+    color: var(--sub);
+  }
+  .header .home-clock strong {
+    color: var(--name);
+    font-weight: 600;
+  }
+  .header .updated {
+    font-size: 12px;
+    color: var(--hour-num);
+  }
+  .header .view-as {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--sub);
+  }
+  .header .view-as label {
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+    color: var(--hour-num);
+  }
+  .header .view-as select {
+    background: var(--label-bg);
+    color: var(--name);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+  }
+  .header .view-as select:hover {
+    border-color: var(--accent);
+  }
+  .header .view-as select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.25);
+  }
+
+  .timeline {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--track-bg);
+    width: 100%;
+    position: relative;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    border-top: 1px solid var(--border);
+    position: relative;
+  }
+  .row:first-child { border-top: none; }
+
+  /* Hour ruler row */
+  .ruler {
+    height: 36px;
+    background: var(--label-bg);
+  }
+  .ruler .label {
+    background: var(--label-bg);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--hour-num);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    display: flex;
+    align-items: center;
+  }
+  .ruler .track {
+    position: relative;
+    height: 36px;
+    background: var(--label-bg);
+  }
+  .ruler .hour-num {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    color: var(--hour-num);
+    letter-spacing: 0.4px;
+  }
+
+  /* Person rows - heights sized to fit content without overflow.
+     Default/home: name line + city-time line = ~58px content.
+     has-meta:     name + city-time + status-pill + last-seen = ~92px content.
+     maintainer:   same as has-meta plus MAINT badge variant = ~96px content. */
+  .person {
+    height: 58px;
+  }
+  .person.has-meta {
+    height: 92px;
+  }
+  .person.has-meta .track {
+    height: 92px;
+  }
+  .person.maintainer {
+    height: 96px;
+  }
+  .person.maintainer .track {
+    height: 96px;
+  }
+  .person.home .label {
+    border-left: 3px solid var(--accent);
+  }
+  .person.home .track {
+    background: var(--track-bg-home);
+  }
+  .label {
+    background: var(--label-bg);
+    padding: 6px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    border-right: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  /* City + local-time on one line to save vertical space */
+  .label .city-time {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--sub);
+    line-height: 1.25;
+  }
+  .label .city-time .city { font-size: 12px; }
+  .label .city-time .local-time { font-size: 13px; color: var(--name); font-weight: 500; }
+  .label .city-time .sep { opacity: 0.4; }
+  .label .name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--name);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .label .home-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #0f1115;
+    background: var(--accent);
+    padding: 2px 5px;
+    border-radius: 3px;
+  }
+  .label .city {
+    font-size: 12px;
+    color: var(--sub);
+  }
+  .label .local-time {
+    font-size: 13px;
+    color: var(--sub);
+    font-weight: 500;
+  }
+
+  .track {
+    position: relative;
+    height: 58px;
+    background: var(--track-bg);
+    overflow: hidden;
+  }
+  .person.home .track {
+    background: var(--track-bg-home);
+  }
+
+  /* Vertical ruler ticks inside each track */
+  .track .tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--tick);
+    opacity: 0.45;
+  }
+  .track .tick.major {
+    opacity: 0.7;
+  }
+  .track .local-hour {
+    position: absolute;
+    bottom: 4px;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--hour-num);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  /* Wake bar */
+  .wake {
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    background: var(--wake-fill);
+    border: 1px solid var(--wake-border);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  /* Peak window (inside wake bar) - shows the highest-confidence online block */
+  .peak {
+    position: absolute;
+    top: 15px;
+    bottom: 15px;
+    background: var(--peak-fill);
+    border: 1px solid var(--peak-border);
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  /* Maintainer row styling */
+  .person.maintainer .label {
+    border-left: 3px solid var(--maintainer);
+  }
+  .label .maintainer-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #0f1115;
+    background: var(--maintainer);
+    padding: 2px 5px;
+    border-radius: 3px;
+  }
+  .label .note {
+    /* Verbose source-citation note is shown in the bar tooltip, not inline,
+       to keep label compact so all 9 rows fit without page scroll. */
+    display: none;
+  }
+  .label .conf-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .conf-dot.high { background: #2ecc71; box-shadow: 0 0 4px rgba(46,204,113,0.6); }
+  .conf-dot.med  { background: #f5a623; }
+  .conf-dot.low  { background: #e74c3c; opacity: 0.7; }
+
+  /* Last-seen + role + status badges in label */
+  .label .last-seen {
+    font-size: 10px;
+    color: var(--hour-num);
+    margin-top: 3px;
+    line-height: 1.2;
+  }
+  .label .last-seen.dormant { color: #e74c3c; opacity: 0.85; }
+  .label .last-seen.fresh   { color: #2ecc71; opacity: 0.85; }
+  .label .role-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 4px;
+    text-transform: uppercase;
+  }
+  .role-badge.triage  { background: rgba(245, 166, 35, 0.18); color: #f5a623; border: 1px solid rgba(245, 166, 35, 0.40); }
+  .role-badge.shipper { background: rgba(46, 204, 113, 0.18); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.40); }
+  .role-badge.solo    { background: rgba(106, 140, 255, 0.18); color: #6a8cff; border: 1px solid rgba(106, 140, 255, 0.40); }
+  .role-badge.review  { background: rgba(187, 134, 252, 0.18); color: #bb86fc; border: 1px solid rgba(187, 134, 252, 0.40); }
+
+  /* Project tag (e.g. which product a maintainer owns) shown on the city-time line */
+  .label .project-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    background: rgba(106, 140, 255, 0.16);
+    color: #9db3ff;
+    border: 1px solid rgba(106, 140, 255, 0.45);
+  }
+
+  /* Live-status pill (next peak countdown / live indicator) */
+  .label .status-pill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-top: 4px;
+    line-height: 1.2;
+  }
+  .status-pill.live {
+    background: rgba(46, 204, 113, 0.25);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.7);
+    box-shadow: 0 0 6px rgba(46, 204, 113, 0.4);
+    animation: live-pulse 2.5s ease-in-out infinite;
+  }
+  .status-pill.upcoming {
+    background: rgba(106, 140, 255, 0.15);
+    color: #6a8cff;
+    border: 1px solid rgba(106, 140, 255, 0.5);
+  }
+  .status-pill.dormant-pill {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.5);
+  }
+  @keyframes live-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(46, 204, 113, 0.4); }
+    50%      { box-shadow: 0 0 12px rgba(46, 204, 113, 0.7); }
+  }
+
+  /* Weekend-dead dimming */
+  .person.weekend-dimmed .wake,
+  .person.weekend-dimmed .peak {
+    opacity: 0.25;
+  }
+  .person.weekend-dimmed .label {
+    opacity: 0.7;
+  }
+
+  /* Dormant overlay (last-seen > 5 days) */
+  .person.dormant .wake,
+  .person.dormant .peak {
+    opacity: 0.30;
+  }
+
+  /* Now line spans all tracks (sits in the timeline area) */
+  .now-line-layer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 260px;
+    right: 0;
+    pointer-events: none;
+  }
+  .now-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--now);
+    box-shadow: 0 0 6px rgba(255, 71, 87, 0.7), 0 0 12px rgba(255, 71, 87, 0.4);
+    transform: translateX(0);
+    will-change: transform;
+  }
+  .now-line .now-label {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    font-size: 10px;
+    color: var(--now);
+    background: rgba(15, 17, 21, 0.85);
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+    letter-spacing: 0.4px;
+  }
+
+  /* Crosshair: vertical line that follows the mouse inside the timeline area */
+  .crosshair-layer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 260px;
+    right: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .crosshair-line {
+    position: absolute;
+    top: 36px; /* below the ruler row */
+    bottom: 0;
+    width: 1px;
+    background: rgba(106, 140, 255, 0.65);
+    box-shadow: 0 0 4px rgba(106, 140, 255, 0.5);
+    transform: translateX(-9999px);
+    will-change: transform;
+  }
+  .crosshair-time {
+    position: absolute;
+    top: 2px;
+    padding: 1px 5px;
+    font-size: 10px;
+    color: #cbd6ff;
+    background: rgba(15, 17, 21, 0.92);
+    border: 1px solid rgba(106, 140, 255, 0.55);
+    border-radius: 3px;
+    white-space: nowrap;
+    transform: translate(-50%, 0);
+    pointer-events: none;
+    letter-spacing: 0.3px;
+  }
+
+  /* Tooltip shown on hover of a wake/peak bar */
+  .tooltip {
+    position: fixed;
+    z-index: 50;
+    pointer-events: none;
+    background: rgba(15, 17, 21, 0.96);
+    border: 1px solid var(--border);
+    color: var(--name);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    max-width: 320px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity 80ms ease;
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip .t-title {
+    font-weight: 600;
+    color: var(--name);
+    margin-bottom: 3px;
+  }
+  .tooltip .t-row {
+    color: var(--sub);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .tooltip .t-row strong { color: var(--name); }
+  .tooltip .t-source {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    color: var(--hour-num);
+    font-size: 10px;
+    font-style: italic;
+  }
+
+  /* Make bars hover-targetable (override pointer-events: none) */
+  .wake, .peak { pointer-events: auto; cursor: help; }
+
+  /* Overlap window strip in the header (best maintainer-overlap window) */
+  .overlap-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--sub);
+    padding: 0 14px;
+  }
+  .overlap-banner .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--peak-border);
+    box-shadow: 0 0 6px var(--peak-border);
+  }
+  .overlap-banner .vw {
+    color: var(--name);
+    font-weight: 600;
+  }
+  .overlap-banner .empty {
+    color: var(--hour-num);
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="title">Team Timeline</div>
+    <div class="view-as">
+      <label for="home-select">Viewing as</label>
+      <select id="home-select" title="Switch whose local time the ruler uses. Your choice is saved to the URL so you can bookmark it."></select>
+    </div>
+    <div class="overlap-banner" id="overlap-banner">
+      <span class="dot"></span>
+      <span>Best maintainer overlap:</span>
+      <span class="vw" id="overlap-window">...</span>
+    </div>
+    <div class="home-clock" id="home-clock">home: ...</div>
+    <div class="updated" id="updated">last update: ...</div>
+  </div>
+  <div class="timeline" id="timeline">
+    <!-- ruler + rows injected here -->
+    <div class="now-line-layer" id="now-line-layer">
+      <div class="now-line" id="now-line">
+        <div class="now-label" id="now-label">now</div>
+      </div>
+    </div>
+    <div class="crosshair-layer" id="crosshair-layer">
+      <div class="crosshair-line" id="crosshair-line"></div>
+    </div>
+  </div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+'use strict';
+
+// `wake` is the broad "might be online" window in the person's local time.
+// `peak` (optional) is an array of [startHour, endHour] tuples for the
+// highest-confidence online blocks, rendered as a brighter inner bar.
+// `peak` tuples may wrap past midnight (e.g. [23, 2] = 23:00 to 02:00 next day).
+// Maintainer rows render a distinct badge + accent border.
+//
+// EMPIRICAL DATA SOURCES (refreshed 2026-05-21 with live Discord signals):
+//   Karl  - GitHub Events API (92 active events over 11d, 2026-05-06 -> 05-17).
+//           Histogram peaks at 22 CET (27 events). Secondary cluster 16-18 CET.
+//           Late-evening Vienna is his actual work pattern. 5% weekend share.
+//           Discord 2026-05-21: replying at 00:54 Vienna -> wake extended past midnight.
+//   Greg  - GitHub Events API (100 active events over 3d, 2026-05-13 -> 05-16).
+//           Two genuine clusters: 09-12 EDT morning (39 events / densest) + 19 EDT
+//           evening (15 events). 13% weekend share. Matches dashboard heatmap.
+//   Alias - GitHub Events API (27 push events over 23d, 2026-04-18 -> 05-12).
+//           Evening peak 18-21 Brisbane (push-only profile, no PR review activity).
+//           Discord 2026-05-21: woke ~08:20 Brisbane (00:20 Vienna). Added an
+//           intermittent morning band 08-10; re-evaluate after 3+ morning sightings.
+//   Will  - GitHub-silent (1 watch event). Meridian internal-log estimate only.
+//           Weekdays ~10-12 + ~21-26 EDT, dead 03-09 EDT. Clawfish 2026-05-21:
+//           zero Discord visibility either. Estimate retained, confidence LOW.
+//   Keith - GitHub near-silent (2 events). Meridian internal-log estimate.
+//           Discord 2026-05-21: active 19:20 Austin CDT (02:20 Vienna), a real
+//           gap-filler. Added evening band 18-22 CDT between the two prior peaks.
+const PEOPLE = [
+  { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true },
+  { name: 'Karl',      city: 'Vienna',   tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
+  { name: 'Greg',      city: 'Boston',   tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
+  { name: 'Alias',     city: 'Brisbane', tz: 'Australia/Brisbane', wake: [8, 22],  peak: [[8, 10], [18, 21]],    confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'GitHub Events 23d / 27 push events: evening peak 18-21 Brisbane, push-only = SOLO committer, 7% weekend. Discord 2026-05-21: woke ~08:20 Brisbane, added intermittent morning band 08-10 (single sample, re-evaluate after 3+ sightings).' },
+  { name: 'David',     city: 'Adelaide', tz: 'Australia/Adelaide', wake: [8, 22] },
+  { name: 'Karla',     city: 'Manila',   tz: 'Asia/Manila',        wake: [8, 22] },
+  { name: 'Will',      city: 'Florida',  tz: 'America/New_York',   wake: [10, 2],  peak: [[10, 12], [21, 24]],   confidence: 'low',  role: 'review',                       lastSeen: '2026-05-13', note: 'Low-confidence. GitHub-silent (1 watch event). Meridian internal-log estimate: weekday 10-12 + 21-02 EDT, dead 03-09 EDT. Clawfish 2026-05-21: no Discord visibility either. No weekend signal.' },
+  { name: 'Keith',     city: 'Austin',   tz: 'America/Chicago',    wake: [10, 2],  peak: [[10, 15], [18, 22], [23, 2]], confidence: 'low',  role: 'review',                  lastSeen: '2026-05-20', note: 'Low-confidence. GitHub-near-silent (2 events). Meridian estimate: weekday 10-15 + 23:30-01:30 CDT. Discord 2026-05-21: active 19:20 Austin, added evening band 18-22 CDT filling the prior 15-23 gap.' },
+];
+
+// --- Home / perspective state ----------------------------------------------
+// The "home" person is whoever's local time the ruler is drawn in. It defaults
+// to the person flagged home:true (Andrew/Vienna) but can be overridden by a
+// URL tag (?as=alias) so a teammate can bookmark a live URL pinned to their own
+// timezone, or by the in-page dropdown (which writes the tag back to the URL).
+const DEFAULT_HOME = (PEOPLE.find(p => p.home) || PEOPLE[0]).name;
+
+function readHomeTag() {
+  const params = new URLSearchParams(location.search);
+  const raw = (params.get('as') || params.get('view') || '').trim().toLowerCase();
+  if (!raw) return null;
+  const match = PEOPLE.find(p => p.name.toLowerCase() === raw);
+  return match ? match.name : null;
+}
+
+let homeName = readHomeTag() || DEFAULT_HOME;
+
+function homePerson() {
+  return PEOPLE.find(p => p.name === homeName) || PEOPLE[0];
+}
+function isHome(person) {
+  return person.name === homeName;
+}
+// Render order: home person first, everyone else in their original order.
+function orderedPeople() {
+  const home = homePerson();
+  return [home, ...PEOPLE.filter(p => p !== home)];
+}
+
+// HOME_TZ is mutable now — reassigned whenever the home person changes so that
+// every offset/clock/ruler computation below follows the active perspective.
+let HOME_TZ = homePerson().tz;
+
+// --- Time helpers ----------------------------------------------------------
+
+function localPartsIn(tz, date) {
+  const d = date || new Date();
+  const f = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    weekday: 'short'
+  });
+  const parts = {};
+  for (const p of f.formatToParts(d)) {
+    if (p.type !== 'literal') parts[p.type] = p.value;
+  }
+  // Intl can emit hour '24' at midnight in some locales; normalize.
+  if (parts.hour === '24') parts.hour = '00';
+  return parts;
+}
+
+function localMinutesOfDay(tz, date) {
+  const p = localPartsIn(tz, date);
+  return parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10);
+}
+
+// Offset in minutes: tz minus HOME_TZ at the given instant.
+// e.g., Manila +6h vs Vienna in winter => returns 360.
+function offsetMinutesFromHome(tz, date) {
+  const d = date || new Date();
+  const home = localPartsIn(HOME_TZ, d);
+  const other = localPartsIn(tz, d);
+
+  const homeUTCish = Date.UTC(
+    parseInt(home.year, 10),
+    parseInt(home.month, 10) - 1,
+    parseInt(home.day, 10),
+    parseInt(home.hour, 10),
+    parseInt(home.minute, 10),
+    parseInt(home.second, 10)
+  );
+  const otherUTCish = Date.UTC(
+    parseInt(other.year, 10),
+    parseInt(other.month, 10) - 1,
+    parseInt(other.day, 10),
+    parseInt(other.hour, 10),
+    parseInt(other.minute, 10),
+    parseInt(other.second, 10)
+  );
+  // Difference in ms, converted to minutes.
+  return Math.round((otherUTCish - homeUTCish) / 60000);
+}
+
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WEEKDAYS_LONG = {
+  'Mon':'Mon', 'Tue':'Tue', 'Wed':'Wed', 'Thu':'Thu', 'Fri':'Fri', 'Sat':'Sat', 'Sun':'Sun'
+};
+
+function formatHomeHeader(date) {
+  const p = localPartsIn(HOME_TZ, date);
+  const weekday = WEEKDAYS_LONG[p.weekday] || p.weekday;
+  const monthShort = MONTHS_SHORT[parseInt(p.month, 10) - 1];
+  return `${weekday} ${parseInt(p.day, 10)} ${monthShort}, ${p.hour}:${p.minute}`;
+}
+
+function formatHHMM(parts) {
+  return `${parts.hour}:${parts.minute}`;
+}
+
+function homeCalendarDateKey(date) {
+  const p = localPartsIn(HOME_TZ, date);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+// --- Rendering -------------------------------------------------------------
+
+const timelineEl = document.getElementById('timeline');
+const nowLineLayerEl = document.getElementById('now-line-layer');
+const nowLineEl = document.getElementById('now-line');
+const nowLabelEl = document.getElementById('now-label');
+const crosshairLayerEl = document.getElementById('crosshair-layer');
+const crosshairLineEl = document.getElementById('crosshair-line');
+const tooltipEl = document.getElementById('tooltip');
+const overlapWindowEl = document.getElementById('overlap-window');
+const homeClockEl = document.getElementById('home-clock');
+const updatedEl = document.getElementById('updated');
+
+let lastHomeDateKey = null;
+const localTimeEls = []; // {el, tz}
+const cursorLabels = []; // crosshair-time elements, one per person row
+const statusPills = []; // {el, person} for live "next peak" refresh
+
+function buildRuler() {
+  const row = document.createElement('div');
+  row.className = 'row ruler';
+
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = `${homePerson().city} hours`;
+
+  const track = document.createElement('div');
+  track.className = 'track';
+
+  // Ticks + numbers every 2 hours, plus 24 at right edge.
+  for (let h = 0; h <= 24; h += 2) {
+    const pct = (h / 24) * 100;
+    const tick = document.createElement('div');
+    tick.className = 'tick major';
+    tick.style.left = pct + '%';
+    track.appendChild(tick);
+    const num = document.createElement('div');
+    num.className = 'hour-num';
+    num.style.left = pct + '%';
+    num.textContent = String(h % 24).padStart(2, '0');
+    // Pin the right-most number inside the track edge so it's not clipped.
+    if (h === 24) num.style.transform = 'translate(-100%, -50%)';
+    if (h === 0)  num.style.transform = 'translate(0, -50%)';
+    track.appendChild(num);
+  }
+
+  row.appendChild(label);
+  row.appendChild(track);
+  return row;
+}
+
+function daysSince(isoDate, now) {
+  if (!isoDate) return null;
+  const ms = now - new Date(isoDate + 'T12:00:00Z');
+  // Clamp to 0: a lastSeen of "today" anchored at noon UTC can read as a small
+  // negative before noon, which must still mean "0 days ago" (seen today).
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
+function isWeekendHome(date) {
+  // localPartsIn returns the weekday short name in the home TZ
+  const wd = localPartsIn(HOME_TZ, date).weekday;
+  return wd === 'Sat' || wd === 'Sun';
+}
+
+function buildPersonRow(person, date) {
+  const isWeekend = isWeekendHome(date);
+  const daysAgo = daysSince(person.lastSeen, date);
+  const isDormant = daysAgo !== null && daysAgo > 5;
+
+  const hasMeta = !!(person.role || person.note || person.lastSeen);
+  const row = document.createElement('div');
+  row.className = 'row person'
+    + (isHome(person) ? ' home' : '')
+    + (person.maintainer ? ' maintainer' : '')
+    + (hasMeta && !person.maintainer ? ' has-meta' : '')
+    + (isWeekend && person.weekendDead ? ' weekend-dimmed' : '')
+    + (isDormant ? ' dormant' : '');
+
+  // Label
+  const label = document.createElement('div');
+  label.className = 'label';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'name';
+  nameEl.textContent = person.name;
+  if (isHome(person)) {
+    const badge = document.createElement('span');
+    badge.className = 'home-badge';
+    badge.textContent = 'HOME';
+    nameEl.appendChild(badge);
+  }
+  if (person.maintainer) {
+    const badge = document.createElement('span');
+    badge.className = 'maintainer-badge';
+    badge.textContent = 'MAINT';
+    nameEl.appendChild(badge);
+  }
+  if (person.confidence) {
+    const dot = document.createElement('span');
+    dot.className = 'conf-dot ' + person.confidence;
+    dot.title = `Data confidence: ${person.confidence}`;
+    nameEl.appendChild(dot);
+  }
+  if (person.role) {
+    const rb = document.createElement('span');
+    rb.className = 'role-badge ' + person.role;
+    rb.textContent = person.role;
+    rb.title = ({
+      triage:  'Issues + comments dominant. Posts replies, labels, design calls.',
+      shipper: 'Push-dominant. Merges and code commits.',
+      solo:    'Push-only profile. Lone-wolf committer, rarely reviews.',
+      review:  'Reviewer / commenter profile.'
+    })[person.role] || person.role;
+    nameEl.appendChild(rb);
+  }
+  label.appendChild(nameEl);
+
+  // City + local time on ONE line: "Vienna · 06:17"
+  const cityTimeEl = document.createElement('div');
+  cityTimeEl.className = 'city-time';
+  const cityPart = document.createElement('span');
+  cityPart.className = 'city';
+  cityPart.textContent = person.city;
+  const sepPart = document.createElement('span');
+  sepPart.className = 'sep';
+  sepPart.textContent = '·';
+  const timePart = document.createElement('span');
+  timePart.className = 'local-time';
+  const initialParts = localPartsIn(person.tz, date);
+  timePart.textContent = formatHHMM(initialParts);
+  cityTimeEl.appendChild(cityPart);
+  cityTimeEl.appendChild(sepPart);
+  cityTimeEl.appendChild(timePart);
+  if (person.project) {
+    const proj = document.createElement('span');
+    proj.className = 'project-badge';
+    proj.textContent = person.project;
+    proj.title = `Project: ${person.project}`;
+    cityTimeEl.appendChild(proj);
+  }
+  label.appendChild(cityTimeEl);
+  localTimeEls.push({ el: timePart, tz: person.tz });
+
+  if (person.note) {
+    const noteEl = document.createElement('div');
+    noteEl.className = 'note';
+    noteEl.textContent = person.note;
+    label.appendChild(noteEl);
+  }
+
+  // Live status pill: "Live now" / "Next peak: in Xh Ym" / "Dormant"
+  if (Array.isArray(person.peak) && person.peak.length > 0) {
+    const pill = computeStatusPill(person, date, isWeekend, isDormant);
+    if (pill) {
+      const pe = document.createElement('div');
+      pe.className = 'status-pill ' + pill.cls;
+      pe.textContent = pill.text;
+      pe.dataset.tz = person.tz; // for the tick refresh below
+      pe.dataset.peakLocalMin = JSON.stringify(person.peak);
+      pe.dataset.weekendDead = String(!!person.weekendDead);
+      pe.dataset.lastSeen = person.lastSeen || '';
+      label.appendChild(pe);
+      statusPills.push({ el: pe, person });
+    }
+  }
+
+  // Last-seen relative-time line + freshness colorization
+  if (person.lastSeen) {
+    const lsEl = document.createElement('div');
+    lsEl.className = 'last-seen';
+    let text;
+    if (daysAgo === null) {
+      text = '';
+    } else if (daysAgo === 0) {
+      text = 'Last seen today'; lsEl.classList.add('fresh');
+    } else if (daysAgo === 1) {
+      text = 'Last seen yesterday'; lsEl.classList.add('fresh');
+    } else if (daysAgo <= 5) {
+      text = `Last seen ${daysAgo}d ago`;
+    } else if (daysAgo <= 14) {
+      text = `Last seen ${daysAgo}d ago — dormant`; lsEl.classList.add('dormant');
+    } else {
+      text = `Last seen ${daysAgo}d ago — silent`; lsEl.classList.add('dormant');
+    }
+    // Suffix today's weekend-dead state if applicable
+    if (isWeekend && person.weekendDead) {
+      text += text ? '. Today is weekend — likely offline.' : 'Today is weekend — likely offline.';
+    }
+    lsEl.textContent = text;
+    if (text) label.appendChild(lsEl);
+  } else if (isWeekend && person.weekendDead) {
+    const lsEl = document.createElement('div');
+    lsEl.className = 'last-seen dormant';
+    lsEl.textContent = 'Today is weekend — likely offline.';
+    label.appendChild(lsEl);
+  }
+
+  // Track
+  const track = document.createElement('div');
+  track.className = 'track';
+
+  // Faint per-row hour ticks (every 2 hours) — these match the Vienna ruler.
+  for (let h = 2; h < 24; h += 2) {
+    const pct = (h / 24) * 100;
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.left = pct + '%';
+    track.appendChild(tick);
+  }
+
+  // Local-hour numbers for THIS person, placed at their corresponding Vienna-x.
+  // Computed once per render — DST shifts are picked up on full re-render.
+  const offset = offsetMinutesFromHome(person.tz, date); // tz - home
+  // For each Vienna hour 0..24, work out what local hour that corresponds to,
+  // and draw numbers at the multiples-of-3 in the person's LOCAL time.
+  // Approach: iterate local hours 0..24 and place each at its Vienna x position.
+  for (let lh = 0; lh < 24; lh += 3) {
+    // local hour lh corresponds to Vienna minute = lh*60 - offset
+    let viennaMin = lh * 60 - offset;
+    // Normalize into [0, 1440)
+    viennaMin = ((viennaMin % 1440) + 1440) % 1440;
+    const pct = (viennaMin / 1440) * 100;
+    const num = document.createElement('div');
+    num.className = 'local-hour';
+    num.style.left = pct + '%';
+    num.textContent = String(lh).padStart(2, '0');
+    track.appendChild(num);
+  }
+
+  // Wake bar: convert wake [wStartLocal, wEndLocal] -> Vienna minutes.
+  const [wakeStartLocal, wakeEndLocal] = person.wake;
+  // Local wake-start in Vienna minutes-of-day:
+  let vStart = wakeStartLocal * 60 - offset;
+  let vEnd   = wakeEndLocal   * 60 - offset;
+  // Normalize to [0, 1440)
+  vStart = ((vStart % 1440) + 1440) % 1440;
+  vEnd   = ((vEnd   % 1440) + 1440) % 1440;
+
+  if (vEnd > vStart) {
+    appendWakeSegment(track, vStart, vEnd, person);
+  } else {
+    // Wraps past Vienna midnight -> draw two segments
+    appendWakeSegment(track, vStart, 1440, person);
+    appendWakeSegment(track, 0, vEnd, person);
+  }
+
+  // Peak windows (optional, only on maintainers / data-backed entries)
+  if (Array.isArray(person.peak)) {
+    for (let i = 0; i < person.peak.length; i++) {
+      const [pStartLocal, pEndLocal] = person.peak[i];
+      let pStart = pStartLocal * 60 - offset;
+      let pEnd   = pEndLocal   * 60 - offset;
+      pStart = ((pStart % 1440) + 1440) % 1440;
+      pEnd   = ((pEnd   % 1440) + 1440) % 1440;
+      if (pEnd > pStart) {
+        appendPeakSegment(track, pStart, pEnd, person, i);
+      } else {
+        appendPeakSegment(track, pStart, 1440, person, i);
+        appendPeakSegment(track, 0, pEnd, person, i);
+      }
+    }
+  }
+
+  // Per-track crosshair time labels (one per person row, hidden until hover)
+  const cursorLabel = document.createElement('div');
+  cursorLabel.className = 'crosshair-time';
+  cursorLabel.style.display = 'none';
+  cursorLabel.dataset.tz = person.tz;
+  track.appendChild(cursorLabel);
+  cursorLabels.push(cursorLabel);
+
+  row.appendChild(label);
+  row.appendChild(track);
+  return row;
+}
+
+function appendWakeSegment(track, startMin, endMin, person) {
+  if (endMin <= startMin) return;
+  const leftPct = (startMin / 1440) * 100;
+  const widthPct = ((endMin - startMin) / 1440) * 100;
+  const seg = document.createElement('div');
+  seg.className = 'wake';
+  seg.style.left = leftPct + '%';
+  seg.style.width = widthPct + '%';
+  if (person) {
+    seg.dataset.kind = 'wake';
+    seg.dataset.person = person.name;
+    seg.dataset.city = person.city;
+    seg.dataset.tz = person.tz;
+    seg.dataset.localStart = String(person.wake[0]).padStart(2, '0') + ':00';
+    seg.dataset.localEnd = String(person.wake[1]).padStart(2, '0') + ':00';
+  }
+  track.appendChild(seg);
+}
+
+function appendPeakSegment(track, startMin, endMin, person, peakIdx) {
+  if (endMin <= startMin) return;
+  const leftPct = (startMin / 1440) * 100;
+  const widthPct = ((endMin - startMin) / 1440) * 100;
+  const seg = document.createElement('div');
+  seg.className = 'peak';
+  seg.style.left = leftPct + '%';
+  seg.style.width = widthPct + '%';
+  if (person && typeof peakIdx === 'number') {
+    const [a, b] = person.peak[peakIdx];
+    seg.dataset.kind = 'peak';
+    seg.dataset.person = person.name;
+    seg.dataset.city = person.city;
+    seg.dataset.tz = person.tz;
+    seg.dataset.localStart = String(a).padStart(2, '0') + ':00';
+    seg.dataset.localEnd = String(b).padStart(2, '0') + ':00';
+    seg.dataset.note = person.note || '';
+  }
+  track.appendChild(seg);
+}
+
+function computeStatusPill(person, date, isWeekend, isDormant) {
+  // Special case: weekend-dead today => static "weekend offline" pill
+  if (isWeekend && person.weekendDead) {
+    return { cls: 'dormant-pill', text: 'Weekend - offline' };
+  }
+  if (isDormant) {
+    return { cls: 'dormant-pill', text: 'Dormant' };
+  }
+  // Build Vienna-minute peak windows for this person from local peak hours
+  const offset = offsetMinutesFromHome(person.tz, date);
+  const windows = [];
+  for (const [a, b] of person.peak) {
+    let s = a * 60 - offset;
+    let e = b * 60 - offset;
+    s = ((s % 1440) + 1440) % 1440;
+    e = ((e % 1440) + 1440) % 1440;
+    if (e > s) windows.push([s, e]);
+    else { windows.push([s, 1440]); windows.push([0, e]); }
+  }
+  const nowMin = localMinutesOfDay(HOME_TZ, date);
+  // Currently in any peak?
+  for (const [s, e] of windows) {
+    if (nowMin >= s && nowMin < e) {
+      const remain = e - nowMin;
+      const rh = Math.floor(remain / 60), rm = remain % 60;
+      return { cls: 'live', text: `Live now (${rh}h ${String(rm).padStart(2, '0')}m left)` };
+    }
+  }
+  // Otherwise find next peak start
+  let bestDelta = Infinity;
+  for (const [s] of windows) {
+    let delta = s - nowMin;
+    if (delta <= 0) delta += 1440;
+    if (delta < bestDelta) bestDelta = delta;
+  }
+  if (bestDelta === Infinity) return null;
+  const dh = Math.floor(bestDelta / 60);
+  const dm = bestDelta % 60;
+  return { cls: 'upcoming', text: `Next peak: in ${dh}h ${String(dm).padStart(2, '0')}m` };
+}
+
+function refreshStatusPills(date) {
+  for (const { el, person } of statusPills) {
+    const isWeekend = isWeekendHome(date);
+    const daysAgo = daysSince(person.lastSeen, date);
+    const isDormant = daysAgo !== null && daysAgo > 5;
+    const pill = computeStatusPill(person, date, isWeekend, isDormant);
+    if (!pill) { el.style.display = 'none'; continue; }
+    el.style.display = '';
+    el.className = 'status-pill ' + pill.cls;
+    el.textContent = pill.text;
+  }
+}
+
+function fullRender(date) {
+  // Clear everything except the now-line layer.
+  // Re-collect: blow away children, then re-append ruler, person rows, then re-add layer.
+  while (timelineEl.firstChild) timelineEl.removeChild(timelineEl.firstChild);
+  localTimeEls.length = 0;
+  cursorLabels.length = 0;
+  statusPills.length = 0;
+
+  timelineEl.appendChild(buildRuler());
+  for (const person of orderedPeople()) {
+    timelineEl.appendChild(buildPersonRow(person, date));
+  }
+  // Re-attach overlay layers (must be inside .timeline so they overlay).
+  timelineEl.appendChild(nowLineLayerEl);
+  timelineEl.appendChild(crosshairLayerEl);
+
+  lastHomeDateKey = homeCalendarDateKey(date);
+  updateNowLine(date);
+  updateClocks(date);
+  updateOverlapBanner(date);
+  bindHoverInteractions();
+}
+
+function updateNowLine(date) {
+  const minutes = localMinutesOfDay(HOME_TZ, date);
+  const pct = (minutes / 1440) * 100;
+  nowLineEl.style.transform = `translateX(${pct}%)`;
+  const homeParts = localPartsIn(HOME_TZ, date);
+  nowLabelEl.textContent = `now ${homeParts.hour}:${homeParts.minute}`;
+}
+
+function updateClocks(date) {
+  const home = homePerson();
+  homeClockEl.innerHTML = `${home.name} &middot; ${home.city} (home): <strong>${formatHomeHeader(date)}</strong>`;
+  const stamp = localPartsIn(HOME_TZ, date);
+  updatedEl.textContent = `last update: ${stamp.hour}:${stamp.minute}`;
+  // Update each row's local-time label.
+  for (const entry of localTimeEls) {
+    const p = localPartsIn(entry.tz, date);
+    entry.el.textContent = formatHHMM(p);
+  }
+}
+
+// --- Tooltip + crosshair interactions -------------------------------------
+
+function showTooltip(target, pageX, pageY) {
+  const d = target.dataset;
+  if (!d.kind) return;
+  const kind = d.kind === 'peak' ? 'Peak window' : 'Wake window';
+  const title = `${d.person} - ${kind}`;
+  const localLine = `<div class="t-row"><strong>${d.localStart}-${d.localEnd}</strong> ${d.city} local time</div>`;
+  // Project the local window onto the home (Vienna) ruler for the user's reference.
+  const homeProjection = projectWindowToHome(d.tz, d.localStart, d.localEnd, new Date());
+  const homeLine = `<div class="t-row">= <strong>${homeProjection}</strong> ${homePerson().city} time today</div>`;
+  const source = d.note ? `<div class="t-source">${d.note}</div>` : '';
+  tooltipEl.innerHTML = `<div class="t-title">${title}</div>${localLine}${homeLine}${source}`;
+  tooltipEl.classList.add('visible');
+  positionTooltip(pageX, pageY);
+}
+
+function positionTooltip(pageX, pageY) {
+  const PAD = 14;
+  const rect = tooltipEl.getBoundingClientRect();
+  let x = pageX + PAD;
+  let y = pageY + PAD;
+  if (x + rect.width > window.innerWidth - 8) x = pageX - rect.width - PAD;
+  if (y + rect.height > window.innerHeight - 8) y = pageY - rect.height - PAD;
+  tooltipEl.style.left = x + 'px';
+  tooltipEl.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  tooltipEl.classList.remove('visible');
+}
+
+function projectWindowToHome(tz, localStart, localEnd, date) {
+  // Convert "HH:MM" local strings to Vienna time strings for today's instant.
+  const offset = offsetMinutesFromHome(tz, date); // tz - home
+  const toHome = (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    let v = h * 60 + m - offset;
+    v = ((v % 1440) + 1440) % 1440;
+    return String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
+  };
+  return `${toHome(localStart)}-${toHome(localEnd)}`;
+}
+
+let trackHoverBound = false;
+function bindHoverInteractions() {
+  // Per-bar hover for tooltip
+  for (const bar of timelineEl.querySelectorAll('.wake, .peak')) {
+    bar.addEventListener('mouseenter', (e) => showTooltip(e.currentTarget, e.clientX, e.clientY));
+    bar.addEventListener('mousemove',  (e) => positionTooltip(e.clientX, e.clientY));
+    bar.addEventListener('mouseleave', hideTooltip);
+  }
+  // Track-level mousemove for crosshair + per-row time-at-cursor
+  if (!trackHoverBound) {
+    timelineEl.addEventListener('mousemove', onTimelineMouseMove);
+    timelineEl.addEventListener('mouseleave', onTimelineMouseLeave);
+    trackHoverBound = true;
+  }
+}
+
+function onTimelineMouseMove(e) {
+  const layerRect = crosshairLayerEl.getBoundingClientRect();
+  if (e.clientX < layerRect.left || e.clientX > layerRect.right) {
+    onTimelineMouseLeave();
+    return;
+  }
+  const offsetX = e.clientX - layerRect.left;
+  const pct = (offsetX / layerRect.width);
+  if (pct < 0 || pct > 1) {
+    onTimelineMouseLeave();
+    return;
+  }
+  // Crosshair line
+  crosshairLineEl.style.transform = `translateX(${offsetX}px)`;
+
+  // Local time at this Vienna-x for each person row
+  const viennaMin = Math.round(pct * 1440);
+  for (const label of cursorLabels) {
+    const tz = label.dataset.tz;
+    const offset = offsetMinutesFromHome(tz, new Date()); // tz - home
+    let local = viennaMin + offset;
+    local = ((local % 1440) + 1440) % 1440;
+    const hh = String(Math.floor(local / 60)).padStart(2, '0');
+    const mm = String(local % 60).padStart(2, '0');
+    label.textContent = `${hh}:${mm}`;
+    label.style.display = '';
+    label.style.left = (pct * 100) + '%';
+  }
+}
+
+function onTimelineMouseLeave() {
+  crosshairLineEl.style.transform = 'translateX(-9999px)';
+  for (const label of cursorLabels) label.style.display = 'none';
+}
+
+// --- Overlap computation (best maintainer-overlap window) -----------------
+
+function updateOverlapBanner(date) {
+  const maintainers = PEOPLE.filter(p => p.maintainer && Array.isArray(p.peak));
+  if (maintainers.length < 2) {
+    overlapWindowEl.innerHTML = '<span class="empty">need 2+ maintainers with peaks</span>';
+    return;
+  }
+  // Build a per-minute presence map (1440 minutes in Vienna time), counting how many
+  // maintainers' peak windows cover each minute.
+  const counts = new Uint8Array(1440);
+  for (const p of maintainers) {
+    const offset = offsetMinutesFromHome(p.tz, date);
+    for (const [a, b] of p.peak) {
+      let s = a * 60 - offset;
+      let e = b * 60 - offset;
+      s = ((s % 1440) + 1440) % 1440;
+      e = ((e % 1440) + 1440) % 1440;
+      const stamp = (from, to) => { for (let m = from; m < to; m++) counts[m]++; };
+      if (e > s) stamp(s, e); else { stamp(s, 1440); stamp(0, e); }
+    }
+  }
+  // Find the longest run where counts >= 2 (meaning 2+ maintainer peaks overlap)
+  let bestStart = -1, bestLen = 0, curStart = -1, curLen = 0;
+  for (let m = 0; m <= 1440; m++) {
+    const here = m < 1440 ? counts[m] >= 2 : false;
+    if (here) {
+      if (curStart < 0) curStart = m;
+      curLen++;
+    } else {
+      if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+      curStart = -1; curLen = 0;
+    }
+  }
+  if (bestLen === 0) {
+    overlapWindowEl.innerHTML = '<span class="empty">no overlap today</span>';
+    return;
+  }
+  const fmt = (min) => String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+  const startStr = fmt(bestStart);
+  const endStr = fmt((bestStart + bestLen) % 1440);
+  // Compute time until / since the window
+  const nowMin = localMinutesOfDay(HOME_TZ, date);
+  const endMin = bestStart + bestLen;
+  let qualifier;
+  if (nowMin >= bestStart && nowMin < endMin) {
+    qualifier = `<span style="color:var(--peak-border)">live now</span>`;
+  } else {
+    let deltaMin = bestStart - nowMin;
+    if (deltaMin < 0) deltaMin += 1440;
+    const dh = Math.floor(deltaMin / 60), dm = deltaMin % 60;
+    qualifier = `in ${dh}h ${String(dm).padStart(2, '0')}m`;
+  }
+  overlapWindowEl.innerHTML = `${startStr}-${endStr} ${homePerson().city} (${qualifier})`;
+}
+
+// --------------------------------------------------------------------------
+
+function tick() {
+  const now = new Date();
+  const todayKey = homeCalendarDateKey(now);
+  if (todayKey !== lastHomeDateKey) {
+    fullRender(now);
+  } else {
+    updateNowLine(now);
+    updateClocks(now);
+    updateOverlapBanner(now);
+    refreshStatusPills(now);
+  }
+}
+
+// --- Perspective dropdown + URL tag ---------------------------------------
+
+const homeSelectEl = document.getElementById('home-select');
+
+function syncHomeSelect() {
+  if (homeSelectEl && homeSelectEl.value !== homeName) homeSelectEl.value = homeName;
+}
+
+// Switch the active home person. When fromUser is true we also write the tag
+// back to the URL (?as=<name>) so the address bar is bookmark-ready. The
+// default person clears the tag to keep the canonical URL clean.
+function setHome(name, fromUser) {
+  const match = PEOPLE.find(p => p.name === name);
+  if (!match) return;
+  homeName = match.name;
+  HOME_TZ = match.tz;
+  if (fromUser) {
+    const params = new URLSearchParams(location.search);
+    params.delete('view');
+    // Always write an explicit tag so every person (including the default,
+    // Andrew/Vienna) has a copy-paste URL pinned to their own timezone.
+    params.set('as', match.name.toLowerCase());
+    const qs = params.toString();
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+  }
+  lastHomeDateKey = null;
+  fullRender(new Date());
+  syncHomeSelect();
+}
+
+function setupHomeSelect() {
+  if (!homeSelectEl) return;
+  homeSelectEl.innerHTML = '';
+  for (const p of PEOPLE) {
+    const opt = document.createElement('option');
+    opt.value = p.name;
+    opt.textContent = `${p.name} (${p.city})`;
+    homeSelectEl.appendChild(opt);
+  }
+  homeSelectEl.value = homeName;
+  homeSelectEl.addEventListener('change', () => setHome(homeSelectEl.value, true));
+}
+
+// Respond to browser back/forward, which can change ?as= without a reload.
+window.addEventListener('popstate', () => {
+  const tagged = readHomeTag() || DEFAULT_HOME;
+  if (tagged !== homeName) setHome(tagged, false);
+});
+
+// Initial render
+setupHomeSelect();
+fullRender(new Date());
+// 30-second tick
+setInterval(tick, 30 * 1000);
+// Also tick once shortly after load to catch the next minute boundary cleanly.
+setTimeout(tick, 5 * 1000);
+
+</script>
+</body>
+</html>
