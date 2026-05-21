@@ -513,6 +513,77 @@
   .label.drop-before { box-shadow: inset 0 3px 0 0 var(--accent); }
   .label.drop-after  { box-shadow: inset 0 -3px 0 0 var(--accent); }
 
+  /* Remove (x) control on each name label, shown on hover */
+  .label .remove-btn {
+    position: absolute;
+    top: 3px; right: 5px;
+    width: 16px; height: 16px;
+    padding: 0;
+    line-height: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--sub);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+  .label:hover .remove-btn { opacity: 0.6; }
+  .label .remove-btn:hover { opacity: 1; color: #fff; background: rgba(231, 76, 60, 0.75); border-color: rgba(231, 76, 60, 0.9); }
+
+  /* Header "+ Add person" button */
+  .header-btn {
+    background: var(--label-bg);
+    color: var(--name);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .header-btn:hover { border-color: var(--accent); }
+
+  /* Add-person form panel */
+  .add-panel {
+    background: var(--track-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .add-panel[hidden] { display: none; }
+  .add-panel .add-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+  .add-panel label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 11px; color: var(--hour-num);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .add-panel input, .add-panel select {
+    background: var(--label-bg); color: var(--name);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 6px 8px; font-size: 13px; font-family: inherit; text-transform: none;
+  }
+  .add-panel .btn-primary {
+    background: var(--accent); color: #0f1115; border: none;
+    border-radius: 6px; padding: 7px 14px; font-weight: 700;
+    cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .add-panel .btn {
+    background: var(--label-bg); color: var(--sub);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 12px; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .add-panel .btn-link {
+    background: none; border: none; color: var(--hour-num);
+    text-decoration: underline; cursor: pointer; font-size: 12px;
+    font-family: inherit; margin-left: auto;
+  }
+  .add-panel .ap-error { color: #e74c3c; font-size: 12px; margin-top: 8px; min-height: 14px; }
+
   /* Overlap window strip in the header (best maintainer-overlap window) */
   .overlap-banner {
     display: flex;
@@ -544,6 +615,7 @@
     <div class="view-as">
       <label for="home-select">Viewing as</label>
       <select id="home-select" title="Switch whose local time the ruler uses. Your choice is saved to the URL so you can bookmark it."></select>
+      <button id="add-person-btn" class="header-btn" title="Add a person to the timeline">+ Add person</button>
     </div>
     <div class="overlap-banner" id="overlap-banner">
       <span class="dot"></span>
@@ -552,6 +624,17 @@
     </div>
     <div class="home-clock" id="home-clock">home: ...</div>
     <div class="updated" id="updated">last update: ...</div>
+  </div>
+  <div class="add-panel" id="add-panel" hidden>
+    <div class="add-row">
+      <label>Name<input id="ap-name" type="text" placeholder="e.g. Sam" autocomplete="off"></label>
+      <label>City<input id="ap-city" type="text" placeholder="e.g. London" autocomplete="off"></label>
+      <label>Timezone<select id="ap-tz"></select></label>
+      <button id="ap-add" class="btn-primary">Add person</button>
+      <button id="ap-cancel" class="btn">Cancel</button>
+      <button id="ap-reset" class="btn-link">Reset roster to defaults</button>
+    </div>
+    <div class="ap-error" id="ap-error"></div>
   </div>
   <div class="timeline" id="timeline">
     <!-- ruler + rows injected here -->
@@ -594,7 +677,7 @@
 //   Keith - GitHub near-silent (2 events). Meridian internal-log estimate.
 //           Discord 2026-05-21: active 19:20 Austin CDT (02:20 Vienna), a real
 //           gap-filler. Added evening band 18-22 CDT between the two prior peaks.
-const PEOPLE = [
+const BASE_PEOPLE = [
   { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:15', e: '08:15', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
   { name: 'Karl',      city: 'Vienna',   tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
   { name: 'Greg',      city: 'Boston',   tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
@@ -604,6 +687,69 @@ const PEOPLE = [
   { name: 'Will',      city: 'Florida',  tz: 'America/New_York',   wake: [10, 2],  peak: [[10, 12], [21, 24]],   confidence: 'low',  role: 'review',                       lastSeen: '2026-05-13', note: 'Low-confidence. GitHub-silent (1 watch event). Meridian internal-log estimate: weekday 10-12 + 21-02 EDT, dead 03-09 EDT. Clawfish 2026-05-21: no Discord visibility either. No weekend signal.' },
   { name: 'Keith',     city: 'Austin',   tz: 'America/Chicago',    wake: [10, 2],  peak: [[10, 15], [18, 22], [23, 2]], confidence: 'low',  role: 'review',                  lastSeen: '2026-05-20', note: 'Low-confidence. GitHub-near-silent (2 events). Meridian estimate: weekday 10-15 + 23:30-01:30 CDT. Discord 2026-05-21: active 19:20 Austin, added evening band 18-22 CDT filling the prior 15-23 gap.' },
 ];
+
+// --- Roster: BASE_PEOPLE + per-browser add/remove customizations -----------
+// Added people and removals are stored in this browser's localStorage, layered
+// over BASE_PEOPLE so the roster edits persist for this viewer while updates to
+// the base data (hours, notes) still flow through.
+function loadCustom() {
+  let added = [], removed = [];
+  try { const a = JSON.parse(localStorage.getItem('tt-added')   || '[]'); if (Array.isArray(a)) added = a; } catch (e) {}
+  try { const r = JSON.parse(localStorage.getItem('tt-removed') || '[]'); if (Array.isArray(r)) removed = r; } catch (e) {}
+  return { added, removed };
+}
+function computeRoster() {
+  const { added, removed } = loadCustom();
+  const addedNames = new Set(added.map(a => a.name));
+  const base = BASE_PEOPLE.filter(p => !removed.includes(p.name) && !addedNames.has(p.name));
+  return base.concat(added);
+}
+let PEOPLE = computeRoster();
+
+const TZ_OPTIONS = [
+  ['Pacific/Auckland','Auckland'], ['Australia/Sydney','Sydney'],
+  ['Australia/Brisbane','Brisbane'], ['Australia/Adelaide','Adelaide'],
+  ['Australia/Perth','Perth'], ['Asia/Tokyo','Tokyo'], ['Asia/Shanghai','Shanghai'],
+  ['Asia/Singapore','Singapore'], ['Asia/Manila','Manila'], ['Asia/Kolkata','India'],
+  ['Asia/Dubai','Dubai'], ['Europe/Moscow','Moscow'], ['Europe/Istanbul','Istanbul'],
+  ['Europe/Athens','Athens'], ['Europe/Vienna','Vienna'], ['Europe/Berlin','Berlin'],
+  ['Europe/Paris','Paris'], ['Europe/London','London'], ['America/Sao_Paulo','Sao Paulo'],
+  ['America/New_York','New York / Boston'], ['America/Chicago','Chicago / Austin'],
+  ['America/Denver','Denver'], ['America/Los_Angeles','Los Angeles'],
+  ['America/Anchorage','Anchorage'], ['Pacific/Honolulu','Honolulu'], ['UTC','UTC'],
+];
+function tzCityGuess(tz) { return (tz.split('/').pop() || tz).replace(/_/g, ' '); }
+
+function addPerson(data) {
+  const { added } = loadCustom();
+  added.push({ name: data.name, city: data.city, tz: data.tz, wake: [8, 22] });
+  try { localStorage.setItem('tt-added', JSON.stringify(added)); } catch (e) {}
+  applyRosterChange();
+}
+function removePerson(name) {
+  const { added, removed } = loadCustom();
+  const i = added.findIndex(a => a.name === name);
+  if (i >= 0) {
+    added.splice(i, 1);
+    try { localStorage.setItem('tt-added', JSON.stringify(added)); } catch (e) {}
+  } else if (!removed.includes(name)) {
+    removed.push(name);
+    try { localStorage.setItem('tt-removed', JSON.stringify(removed)); } catch (e) {}
+  }
+  applyRosterChange();
+}
+function applyRosterChange() {
+  PEOPLE = computeRoster();
+  if (!PEOPLE.length) PEOPLE = BASE_PEOPLE.slice();
+  if (!PEOPLE.some(p => p.name === homeName)) {
+    const fb = PEOPLE.find(p => p.home) || PEOPLE[0];
+    homeName = fb.name;
+    HOME_TZ = fb.tz;
+  }
+  loadOrder();
+  populateHomeSelect();
+  fullRender(new Date());
+}
 
 // --- Home / perspective state ----------------------------------------------
 // The "home" person is whoever's local time the ruler is drawn in. It defaults
@@ -877,6 +1023,7 @@ function buildPersonRow(person, date) {
   label.dataset.personName = person.name;
   label.title = 'Drag to reorder';
   label.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.remove-btn')) { e.preventDefault(); return; }
     dragName = person.name;
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', person.name); } catch (_) {}
@@ -900,6 +1047,19 @@ function buildPersonRow(person, date) {
     const from = dragName; dragName = null;
     reorderRows(from, person.name, after);
   });
+
+  // Remove (x) button, shown on hover.
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-btn';
+  removeBtn.textContent = '×';
+  removeBtn.title = 'Remove ' + person.name;
+  removeBtn.draggable = false;
+  removeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (confirm('Remove ' + person.name + ' from the timeline?')) removePerson(person.name);
+  });
+  label.appendChild(removeBtn);
 
   const nameEl = document.createElement('div');
   nameEl.className = 'name';
@@ -1453,7 +1613,8 @@ function setHome(name, fromUser) {
   syncHomeSelect();
 }
 
-function setupHomeSelect() {
+let homeSelectBound = false;
+function populateHomeSelect() {
   if (!homeSelectEl) return;
   homeSelectEl.innerHTML = '';
   for (const p of PEOPLE) {
@@ -1463,7 +1624,58 @@ function setupHomeSelect() {
     homeSelectEl.appendChild(opt);
   }
   homeSelectEl.value = homeName;
-  homeSelectEl.addEventListener('change', () => setHome(homeSelectEl.value, true));
+}
+function setupHomeSelect() {
+  if (!homeSelectEl) return;
+  populateHomeSelect();
+  if (!homeSelectBound) {
+    homeSelectEl.addEventListener('change', () => setHome(homeSelectEl.value, true));
+    homeSelectBound = true;
+  }
+}
+
+// Wire the "+ Add person" button, the add form, and the reset link.
+function setupRosterControls() {
+  const addBtn = document.getElementById('add-person-btn');
+  const panel  = document.getElementById('add-panel');
+  const nameEl = document.getElementById('ap-name');
+  const cityEl = document.getElementById('ap-city');
+  const tzEl   = document.getElementById('ap-tz');
+  const errEl  = document.getElementById('ap-error');
+  if (!addBtn || !panel || !tzEl) return;
+  if (!tzEl.options.length) {
+    for (const [val, lbl] of TZ_OPTIONS) {
+      const o = document.createElement('option');
+      o.value = val; o.textContent = lbl + '  (' + val + ')';
+      tzEl.appendChild(o);
+    }
+    tzEl.value = 'Europe/London';
+  }
+  addBtn.addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+    errEl.textContent = '';
+    if (!panel.hidden && nameEl) nameEl.focus();
+  });
+  document.getElementById('ap-cancel').addEventListener('click', () => { panel.hidden = true; errEl.textContent = ''; });
+  document.getElementById('ap-add').addEventListener('click', () => {
+    const name = (nameEl.value || '').trim();
+    if (!name) { errEl.textContent = 'Enter a name.'; return; }
+    const { added } = loadCustom();
+    if (BASE_PEOPLE.some(p => p.name === name) || added.some(a => a.name === name)) {
+      errEl.textContent = 'A person named "' + name + '" already exists.'; return;
+    }
+    const tz = tzEl.value;
+    try { new Intl.DateTimeFormat('en-GB', { timeZone: tz }); } catch (e) { errEl.textContent = 'Pick a valid timezone.'; return; }
+    const city = (cityEl.value || '').trim() || tzCityGuess(tz);
+    addPerson({ name, city, tz });
+    nameEl.value = ''; cityEl.value = ''; errEl.textContent = ''; panel.hidden = true;
+  });
+  document.getElementById('ap-reset').addEventListener('click', () => {
+    if (!confirm('Reset the roster to defaults on this browser? Removes people you added and restores any you removed.')) return;
+    try { localStorage.removeItem('tt-added'); localStorage.removeItem('tt-removed'); } catch (e) {}
+    applyRosterChange();
+    panel.hidden = true;
+  });
 }
 
 // Respond to browser back/forward, which can change ?as= without a reload.
@@ -1474,6 +1686,7 @@ window.addEventListener('popstate', () => {
 
 // Initial render
 setupHomeSelect();
+setupRosterControls();
 fullRender(new Date());
 // 30-second tick
 setInterval(tick, 30 * 1000);
