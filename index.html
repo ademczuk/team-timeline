@@ -567,6 +567,7 @@
     border: 1px solid var(--border); border-radius: 5px;
     padding: 6px 8px; font-size: 13px; font-family: inherit; text-transform: none;
   }
+  .add-panel input.ap-num { width: 56px; }
   .add-panel .btn-primary {
     background: var(--accent); color: #0f1115; border: none;
     border-radius: 6px; padding: 7px 14px; font-weight: 700;
@@ -630,6 +631,8 @@
       <label>Name<input id="ap-name" type="text" placeholder="e.g. Sam" autocomplete="off"></label>
       <label>City<input id="ap-city" type="text" placeholder="e.g. London" autocomplete="off"></label>
       <label>Timezone<select id="ap-tz"></select></label>
+      <label>Online from<input id="ap-wstart" type="number" min="0" max="23" value="8" class="ap-num"></label>
+      <label>to<input id="ap-wend" type="number" min="1" max="24" value="22" class="ap-num"></label>
       <button id="ap-add" class="btn-primary">Add person</button>
       <button id="ap-cancel" class="btn">Cancel</button>
       <button id="ap-reset" class="btn-link">Reset roster to defaults</button>
@@ -722,7 +725,7 @@ function tzCityGuess(tz) { return (tz.split('/').pop() || tz).replace(/_/g, ' ')
 
 function addPerson(data) {
   const { added } = loadCustom();
-  added.push({ name: data.name, city: data.city, tz: data.tz, wake: [8, 22] });
+  added.push({ name: data.name, city: data.city, tz: data.tz, wake: data.wake || [8, 22] });
   try { localStorage.setItem('tt-added', JSON.stringify(added)); } catch (e) {}
   applyRosterChange();
 }
@@ -1577,8 +1580,9 @@ function updateOverlapBanner(date) {
 
 function tick() {
   // Re-anchor the rolling axis to "now" every tick so the now-line stays pinned
-  // to the left edge and the bars scroll left over time. fullRender is cheap
-  // (one ruler + 9 rows).
+  // to the left edge and the bars scroll left over time. fullRender is cheap.
+  // Skip while a row drag is in progress so the rebuild can't cancel the drag.
+  if (dragName) return;
   fullRender(new Date());
 }
 
@@ -1667,9 +1671,18 @@ function setupRosterControls() {
     const tz = tzEl.value;
     try { new Intl.DateTimeFormat('en-GB', { timeZone: tz }); } catch (e) { errEl.textContent = 'Pick a valid timezone.'; return; }
     const city = (cityEl.value || '').trim() || tzCityGuess(tz);
-    addPerson({ name, city, tz });
+    const ws = parseInt((document.getElementById('ap-wstart') || {}).value, 10);
+    const we = parseInt((document.getElementById('ap-wend') || {}).value, 10);
+    const wake = (Number.isFinite(ws) && Number.isFinite(we))
+      ? [Math.max(0, Math.min(23, ws)), Math.max(1, Math.min(24, we))]
+      : [8, 22];
+    addPerson({ name, city, tz, wake });
     nameEl.value = ''; cityEl.value = ''; errEl.textContent = ''; panel.hidden = true;
   });
+  // Enter in a text field submits the add form.
+  [nameEl, cityEl].forEach(el => el && el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('ap-add').click(); }
+  }));
   document.getElementById('ap-reset').addEventListener('click', () => {
     if (!confirm('Reset the roster to defaults on this browser? Removes people you added and restores any you removed.')) return;
     try { localStorage.removeItem('tt-added'); localStorage.removeItem('tt-removed'); } catch (e) {}
