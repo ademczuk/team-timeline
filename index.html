@@ -679,17 +679,19 @@
 //   Keith - Discord Events API via Meridian bot, 411 msgs / 40d (Anismin, @ablac).
 //           Active 06-01 CDT; peaks 07-13 (densest 11-13) + 19 + 22-01; 42% weekend.
 //           HIGH confidence. Replaces prior near-silent GitHub estimate.
-//   Tom   - @TD42: NOT a member of any Meridian-bot Discord server (Anismin /
-//           Meridian's / AgentPort). No reachable histogram. Pending timezone to add.
+//   Tom   - @TD42: NOT a member of any Meridian-bot Discord server, so no
+//           reachable histogram. Brisbane tz per Andrew (2026-05-21); hours are
+//           a default placeholder until real activity data exists.
 const BASE_PEOPLE = [
-  { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:15', e: '08:15', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
-  { name: 'Karl',      city: 'Vienna',   tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
-  { name: 'Greg',      city: 'Boston',   tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
-  { name: 'Dee',       city: 'Brisbane', tz: 'Australia/Brisbane', wake: [8, 19],  peak: [[8, 10], [17, 19]],    project: 'aka Alias', confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'Dee (aka Alias; @alias on Discord, PrompDev on GitHub). Not available after 19:00 Brisbane (Andrew, 2026-05-21), so wake capped at 19:00. GitHub Events 23d / 27 push events: push-only = SOLO committer, 7% weekend. Not a member of any Meridian-bot Discord server, so no Discord histogram is reachable.' },
-  { name: 'David',     city: 'Adelaide', tz: 'Australia/Adelaide', wake: [8, 22] },
-  { name: 'Karla',     city: 'Manila',   tz: 'Asia/Manila',        wake: [8, 22] },
-  { name: 'Will',      city: 'Florida',  tz: 'America/New_York',   wake: [9, 2],   peak: [[16, 17], [20, 21]],   confidence: 'med',  role: 'review',                       lastSeen: '2026-05-18', note: 'Empirical: Discord 40d / 40 msgs (Anismin server, @willthings). Strong single peak 20:00 EDT, lighter daytime 09-17, some 00-02. GitHub-silent but Discord-active. 25% weekend. MED confidence (small sample).' },
-  { name: 'Keith',     city: 'Austin',   tz: 'America/Chicago',    wake: [6, 1],   peak: [[7, 13], [19, 20], [22, 1]], confidence: 'high', role: 'review',                  lastSeen: '2026-05-20', note: 'Empirical: Discord 40d / 411 msgs (Anismin server, @ablac). Active 06:00-01:00 CDT, dead 02-05. Peaks: morning-midday 07-13 (densest 11-13), dinner spike 19, late block 22-01. 42% weekend (very weekend-active). HIGH confidence, replaces prior estimate.' },
+  { name: 'Andrew',    city: 'Vienna',   country: 'Austria',     tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:15', e: '08:15', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
+  { name: 'Karl',      city: 'Vienna',   country: 'Austria',     tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
+  { name: 'Greg',      city: 'Boston',   country: 'USA',         tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
+  { name: 'Dee',       city: 'Brisbane', country: 'Australia',   tz: 'Australia/Brisbane', wake: [8, 19],  peak: [[8, 10], [17, 19]],    project: 'aka Alias', confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'Dee (aka Alias; @alias on Discord, PrompDev on GitHub). Not available after 19:00 Brisbane (Andrew, 2026-05-21), so wake capped at 19:00. GitHub Events 23d / 27 push events: push-only = SOLO committer, 7% weekend. Not a member of any Meridian-bot Discord server, so no Discord histogram is reachable.' },
+  { name: 'David',     city: 'Adelaide', country: 'Australia',   tz: 'Australia/Adelaide', wake: [8, 22] },
+  { name: 'Karla',     city: 'Manila',   country: 'Philippines', tz: 'Asia/Manila',        wake: [8, 22] },
+  { name: 'Will',      city: 'Florida',  country: 'USA',         tz: 'America/New_York',   wake: [9, 2],   peak: [[16, 17], [20, 21]],   confidence: 'med',  role: 'review',                       lastSeen: '2026-05-18', note: 'Empirical: Discord 40d / 40 msgs (Anismin server, @willthings). Strong single peak 20:00 EDT, lighter daytime 09-17, some 00-02. GitHub-silent but Discord-active. 25% weekend. MED confidence (small sample).' },
+  { name: 'Keith',     city: 'Austin',   country: 'USA',         tz: 'America/Chicago',    wake: [6, 1],   peak: [[7, 13], [19, 20], [22, 1]], confidence: 'high', role: 'review',                  lastSeen: '2026-05-20', note: 'Empirical: Discord 40d / 411 msgs (Anismin server, @ablac). Active 06:00-01:00 CDT, dead 02-05. Peaks: morning-midday 07-13 (densest 11-13), dinner spike 19, late block 22-01. 42% weekend (very weekend-active). HIGH confidence, replaces prior estimate.' },
+  { name: 'Tom',       city: 'Brisbane', country: 'Australia',   tz: 'Australia/Brisbane', wake: [8, 22],  confidence: 'low',  role: 'solo',  lastSeen: '2026-05-21', note: 'Tom (@TD42 on Discord). Brisbane timezone per Andrew (2026-05-21). Not a member of any reachable Discord server, so no activity histogram yet. Default 08:00-22:00 hours are a placeholder pending real data.' },
 ];
 
 // --- Home / perspective + roster -------------------------------------------
@@ -707,7 +709,7 @@ function readHomeTagRaw() {
   const params = new URLSearchParams(location.search);
   let raw = (params.get('as') || params.get('view') || '').trim().toLowerCase();
   if (!raw) return null;
-  const ALIASES = { alias: 'dee' };          // old bookmarks: alias -> Dee
+  const ALIASES = { alias: 'dee', td42: 'tom' };  // old/handle bookmarks -> name
   if (ALIASES[raw]) raw = ALIASES[raw];
   return raw;
 }
@@ -756,22 +758,23 @@ function computeRoster() {
 let PEOPLE = computeRoster();
 
 const TZ_OPTIONS = [
-  ['Pacific/Auckland','Auckland'], ['Australia/Sydney','Sydney'],
-  ['Australia/Brisbane','Brisbane'], ['Australia/Adelaide','Adelaide'],
-  ['Australia/Perth','Perth'], ['Asia/Tokyo','Tokyo'], ['Asia/Shanghai','Shanghai'],
-  ['Asia/Singapore','Singapore'], ['Asia/Manila','Manila'], ['Asia/Kolkata','India'],
-  ['Asia/Dubai','Dubai'], ['Europe/Moscow','Moscow'], ['Europe/Istanbul','Istanbul'],
-  ['Europe/Athens','Athens'], ['Europe/Vienna','Vienna'], ['Europe/Berlin','Berlin'],
-  ['Europe/Paris','Paris'], ['Europe/London','London'], ['America/Sao_Paulo','Sao Paulo'],
-  ['America/New_York','New York / Boston'], ['America/Chicago','Chicago / Austin'],
-  ['America/Denver','Denver'], ['America/Los_Angeles','Los Angeles'],
-  ['America/Anchorage','Anchorage'], ['Pacific/Honolulu','Honolulu'], ['UTC','UTC'],
+  ['Pacific/Auckland','Auckland','New Zealand'], ['Australia/Sydney','Sydney','Australia'],
+  ['Australia/Brisbane','Brisbane','Australia'], ['Australia/Adelaide','Adelaide','Australia'],
+  ['Australia/Perth','Perth','Australia'], ['Asia/Tokyo','Tokyo','Japan'], ['Asia/Shanghai','Shanghai','China'],
+  ['Asia/Singapore','Singapore','Singapore'], ['Asia/Manila','Manila','Philippines'], ['Asia/Kolkata','India','India'],
+  ['Asia/Dubai','Dubai','UAE'], ['Europe/Moscow','Moscow','Russia'], ['Europe/Istanbul','Istanbul','Turkey'],
+  ['Europe/Athens','Athens','Greece'], ['Europe/Vienna','Vienna','Austria'], ['Europe/Berlin','Berlin','Germany'],
+  ['Europe/Paris','Paris','France'], ['Europe/London','London','UK'], ['America/Sao_Paulo','Sao Paulo','Brazil'],
+  ['America/New_York','New York / Boston','USA'], ['America/Chicago','Chicago / Austin','USA'],
+  ['America/Denver','Denver','USA'], ['America/Los_Angeles','Los Angeles','USA'],
+  ['America/Anchorage','Anchorage','USA'], ['Pacific/Honolulu','Honolulu','USA'], ['UTC','UTC',''],
 ];
 function tzCityGuess(tz) { return (tz.split('/').pop() || tz).replace(/_/g, ' '); }
+function tzCountry(tz) { const m = TZ_OPTIONS.find(o => o[0] === tz); return m ? (m[2] || '') : ''; }
 
 function addPerson(data) {
   const { added } = loadCustom();
-  added.push({ name: data.name, city: data.city, tz: data.tz, wake: data.wake || [8, 22] });
+  added.push({ name: data.name, city: data.city, country: data.country || tzCountry(data.tz), tz: data.tz, wake: data.wake || [8, 22] });
   try { localStorage.setItem(addedKey(), JSON.stringify(added)); } catch (e) {}
   applyRosterChange();
 }
@@ -1669,7 +1672,8 @@ function populateHomeSelect() {
   for (const p of PEOPLE) {
     const opt = document.createElement('option');
     opt.value = p.name;
-    opt.textContent = `${p.name} (${p.city})`;
+    const loc = p.country ? `${p.city}, ${p.country}` : p.city;
+    opt.textContent = `${p.name} (${loc})`;
     homeSelectEl.appendChild(opt);
   }
   homeSelectEl.value = homeName;
