@@ -670,25 +670,26 @@
 //   Greg  - GitHub Events API (100 active events over 3d, 2026-05-13 -> 05-16).
 //           Two genuine clusters: 09-12 EDT morning (39 events / densest) + 19 EDT
 //           evening (15 events). 13% weekend share. Matches dashboard heatmap.
-//   Alias - GitHub Events API (27 push events over 23d, 2026-04-18 -> 05-12).
-//           Evening peak 18-21 Brisbane (push-only profile, no PR review activity).
-//           Discord 2026-05-21: woke ~08:20 Brisbane (00:20 Vienna). Added an
-//           intermittent morning band 08-10; re-evaluate after 3+ morning sightings.
-//   Will  - GitHub-silent (1 watch event). Meridian internal-log estimate only.
-//           Weekdays ~10-12 + ~21-26 EDT, dead 03-09 EDT. Clawfish 2026-05-21:
-//           zero Discord visibility either. Estimate retained, confidence LOW.
-//   Keith - GitHub near-silent (2 events). Meridian internal-log estimate.
-//           Discord 2026-05-21: active 19:20 Austin CDT (02:20 Vienna), a real
-//           gap-filler. Added evening band 18-22 CDT between the two prior peaks.
+//   Dee   - aka Alias (@alias / PrompDev). GitHub Events 23d / 27 push events:
+//           evening peak 18-21 Brisbane, push-only SOLO committer, 7% weekend.
+//           Not in any Meridian-bot Discord server, so GitHub is the only source.
+//   Will  - Discord Events API via Meridian bot, 40 msgs / 40d (Anismin, @willthings).
+//           Strong peak 20 EDT, light daytime 09-17, some 00-02. GitHub-silent but
+//           Discord-active. MED confidence (small n). Replaces prior LOW estimate.
+//   Keith - Discord Events API via Meridian bot, 411 msgs / 40d (Anismin, @ablac).
+//           Active 06-01 CDT; peaks 07-13 (densest 11-13) + 19 + 22-01; 42% weekend.
+//           HIGH confidence. Replaces prior near-silent GitHub estimate.
+//   Tom   - @TD42: NOT a member of any Meridian-bot Discord server (Anismin /
+//           Meridian's / AgentPort). No reachable histogram. Pending timezone to add.
 const BASE_PEOPLE = [
   { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:15', e: '08:15', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
   { name: 'Karl',      city: 'Vienna',   tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
   { name: 'Greg',      city: 'Boston',   tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
-  { name: 'Alias',     city: 'Brisbane', tz: 'Australia/Brisbane', wake: [8, 22],  peak: [[8, 10], [18, 21]],    confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'GitHub Events 23d / 27 push events: evening peak 18-21 Brisbane, push-only = SOLO committer, 7% weekend. Discord 2026-05-21: woke ~08:20 Brisbane, added intermittent morning band 08-10 (single sample, re-evaluate after 3+ sightings).' },
+  { name: 'Dee',       city: 'Brisbane', tz: 'Australia/Brisbane', wake: [8, 22],  peak: [[8, 10], [18, 21]],    project: 'aka Alias', confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'Dee (aka Alias; @alias on Discord, PrompDev on GitHub). GitHub Events 23d / 27 push events: evening peak 18-21 Brisbane, push-only = SOLO committer, 7% weekend. Discord 2026-05-21: woke ~08:20 Brisbane. Not a member of any Meridian-bot Discord server, so no Discord histogram is reachable.' },
   { name: 'David',     city: 'Adelaide', tz: 'Australia/Adelaide', wake: [8, 22] },
   { name: 'Karla',     city: 'Manila',   tz: 'Asia/Manila',        wake: [8, 22] },
-  { name: 'Will',      city: 'Florida',  tz: 'America/New_York',   wake: [10, 2],  peak: [[10, 12], [21, 24]],   confidence: 'low',  role: 'review',                       lastSeen: '2026-05-13', note: 'Low-confidence. GitHub-silent (1 watch event). Meridian internal-log estimate: weekday 10-12 + 21-02 EDT, dead 03-09 EDT. Clawfish 2026-05-21: no Discord visibility either. No weekend signal.' },
-  { name: 'Keith',     city: 'Austin',   tz: 'America/Chicago',    wake: [10, 2],  peak: [[10, 15], [18, 22], [23, 2]], confidence: 'low',  role: 'review',                  lastSeen: '2026-05-20', note: 'Low-confidence. GitHub-near-silent (2 events). Meridian estimate: weekday 10-15 + 23:30-01:30 CDT. Discord 2026-05-21: active 19:20 Austin, added evening band 18-22 CDT filling the prior 15-23 gap.' },
+  { name: 'Will',      city: 'Florida',  tz: 'America/New_York',   wake: [9, 2],   peak: [[16, 17], [20, 21]],   confidence: 'med',  role: 'review',                       lastSeen: '2026-05-18', note: 'Empirical: Discord 40d / 40 msgs (Anismin server, @willthings). Strong single peak 20:00 EDT, lighter daytime 09-17, some 00-02. GitHub-silent but Discord-active. 25% weekend. MED confidence (small sample).' },
+  { name: 'Keith',     city: 'Austin',   tz: 'America/Chicago',    wake: [6, 1],   peak: [[7, 13], [19, 20], [22, 1]], confidence: 'high', role: 'review',                  lastSeen: '2026-05-20', note: 'Empirical: Discord 40d / 411 msgs (Anismin server, @ablac). Active 06:00-01:00 CDT, dead 02-05. Peaks: morning-midday 07-13 (densest 11-13), dinner spike 19, late block 22-01. 42% weekend (very weekend-active). HIGH confidence, replaces prior estimate.' },
 ];
 
 // --- Roster: BASE_PEOPLE + per-browser add/remove customizations -----------
