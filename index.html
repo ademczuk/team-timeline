@@ -411,11 +411,11 @@
     position: absolute;
     top: 0;
     bottom: 0;
+    left: 0;
     width: 2px;
     background: var(--now);
     box-shadow: 0 0 6px rgba(255, 71, 87, 0.7), 0 0 12px rgba(255, 71, 87, 0.4);
-    transform: translateX(0);
-    will-change: transform;
+    will-change: left;
   }
   .now-line .now-label {
     position: absolute;
@@ -1151,9 +1151,20 @@ function fullRender(date) {
 function updateNowLine(date) {
   const minutes = localMinutesOfDay(HOME_TZ, date);
   const pct = (minutes / 1440) * 100;
-  nowLineEl.style.transform = `translateX(${pct}%)`;
+  // Position by left%, NOT transform: a percentage translateX resolves against
+  // the element's own 2px width, so it never moves. left% is relative to the
+  // layer width, which is what we want.
+  nowLineEl.style.left = pct + '%';
   const homeParts = localPartsIn(HOME_TZ, date);
   nowLabelEl.textContent = `now ${homeParts.hour}:${homeParts.minute}`;
+  // Flip the label to the left of the line near the right edge so it doesn't clip.
+  if (pct > 88) {
+    nowLabelEl.style.left = 'auto';
+    nowLabelEl.style.right = '4px';
+  } else {
+    nowLabelEl.style.left = '4px';
+    nowLabelEl.style.right = 'auto';
+  }
 }
 
 function updateClocks(date) {
