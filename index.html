@@ -505,6 +505,14 @@
   /* Make bars hover-targetable (override pointer-events: none) */
   .wake, .peak, .busy { pointer-events: auto; cursor: help; }
 
+  /* Draggable name rows: drag a person's label up or down to reorder. The order
+     is saved per ?as= tag in this browser's localStorage. */
+  .person .label { cursor: grab; }
+  .person .label:active { cursor: grabbing; }
+  .row.dragging { opacity: 0.45; }
+  .label.drop-before { box-shadow: inset 0 3px 0 0 var(--accent); }
+  .label.drop-after  { box-shadow: inset 0 -3px 0 0 var(--accent); }
+
   /* Overlap window strip in the header (best maintainer-overlap window) */
   .overlap-banner {
     display: flex;
@@ -587,7 +595,7 @@
 //           Discord 2026-05-21: active 19:20 Austin CDT (02:20 Vienna), a real
 //           gap-filler. Added evening band 18-22 CDT between the two prior peaks.
 const PEOPLE = [
-  { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:20', e: '08:00', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
+  { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:15', e: '08:15', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
   { name: 'Karl',      city: 'Vienna',   tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
   { name: 'Greg',      city: 'Boston',   tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
   { name: 'Alias',     city: 'Brisbane', tz: 'Australia/Brisbane', wake: [8, 22],  peak: [[8, 10], [18, 21]],    confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'GitHub Events 23d / 27 push events: evening peak 18-21 Brisbane, push-only = SOLO committer, 7% weekend. Discord 2026-05-21: woke ~08:20 Brisbane, added intermittent morning band 08-10 (single sample, re-evaluate after 3+ sightings).' },
@@ -620,15 +628,57 @@ function homePerson() {
 function isHome(person) {
   return person.name === homeName;
 }
-// Render order: home person first, everyone else in their original order.
+// Render order: use the saved per-tag drag order if present, else home first.
 function orderedPeople() {
   const home = homePerson();
+  if (rowOrder && rowOrder.length) {
+    const byName = new Map(PEOPLE.map(p => [p.name, p]));
+    const ordered = rowOrder.map(n => byName.get(n)).filter(Boolean);
+    const present = new Set(ordered.map(p => p.name));
+    for (const p of PEOPLE) if (!present.has(p.name)) ordered.push(p);
+    return ordered;
+  }
   return [home, ...PEOPLE.filter(p => p !== home)];
 }
 
 // HOME_TZ is mutable now — reassigned whenever the home person changes so that
 // every offset/clock/ruler computation below follows the active perspective.
 let HOME_TZ = homePerson().tz;
+
+// Row-order preference, saved per home tag in localStorage so each ?as= view
+// (and each person's own browser) keeps its own dragged order.
+let rowOrder = null;
+let dragName = null;
+function orderKey() { return 'tt-order:' + homeName; }
+function loadOrder() {
+  try {
+    const raw = localStorage.getItem(orderKey());
+    const arr = raw ? JSON.parse(raw) : null;
+    rowOrder = (Array.isArray(arr) && arr.length) ? arr : null;
+  } catch (e) { rowOrder = null; }
+}
+function saveOrder() {
+  try { localStorage.setItem(orderKey(), JSON.stringify(rowOrder)); } catch (e) {}
+}
+function clearDropMarkers() {
+  for (const l of document.querySelectorAll('.label.drop-before, .label.drop-after'))
+    l.classList.remove('drop-before', 'drop-after');
+}
+function reorderRows(from, to, after) {
+  if (!from || from === to) return;
+  const names = orderedPeople().map(p => p.name);
+  const fromIdx = names.indexOf(from);
+  if (fromIdx === -1) return;
+  names.splice(fromIdx, 1);
+  let toIdx = names.indexOf(to);
+  if (toIdx === -1) return;
+  if (after) toIdx += 1;
+  names.splice(toIdx, 0, from);
+  rowOrder = names;
+  saveOrder();
+  fullRender(new Date());
+}
+loadOrder();
 
 // --- Time helpers ----------------------------------------------------------
 
@@ -821,6 +871,35 @@ function buildPersonRow(person, date) {
   // Label
   const label = document.createElement('div');
   label.className = 'label';
+
+  // Drag-to-reorder: dragging a person's label up/down rewrites the saved order.
+  label.draggable = true;
+  label.dataset.personName = person.name;
+  label.title = 'Drag to reorder';
+  label.addEventListener('dragstart', (e) => {
+    dragName = person.name;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', person.name); } catch (_) {}
+    row.classList.add('dragging');
+  });
+  label.addEventListener('dragend', () => { row.classList.remove('dragging'); clearDropMarkers(); });
+  label.addEventListener('dragover', (e) => {
+    if (!dragName || dragName === person.name) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = label.getBoundingClientRect();
+    const after = (e.clientY - rect.top) > rect.height / 2;
+    label.classList.toggle('drop-after', after);
+    label.classList.toggle('drop-before', !after);
+  });
+  label.addEventListener('dragleave', () => label.classList.remove('drop-before', 'drop-after'));
+  label.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const after = label.classList.contains('drop-after');
+    label.classList.remove('drop-before', 'drop-after');
+    const from = dragName; dragName = null;
+    reorderRows(from, person.name, after);
+  });
 
   const nameEl = document.createElement('div');
   nameEl.className = 'name';
@@ -1359,6 +1438,7 @@ function setHome(name, fromUser) {
   if (!match) return;
   homeName = match.name;
   HOME_TZ = match.tz;
+  loadOrder();
   if (fromUser) {
     const params = new URLSearchParams(location.search);
     params.delete('view');
