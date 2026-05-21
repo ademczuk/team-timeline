@@ -271,6 +271,19 @@
     border-radius: 3px;
     pointer-events: none;
   }
+  /* Busy / unavailable block (e.g. recurring weekday school run). Sits over the
+     wake bar with a red diagonal hatch so it reads as "blocked out". */
+  .busy {
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    background: repeating-linear-gradient(45deg,
+      rgba(231, 76, 60, 0.34) 0, rgba(231, 76, 60, 0.34) 5px,
+      rgba(231, 76, 60, 0.12) 5px, rgba(231, 76, 60, 0.12) 10px);
+    border: 1px solid rgba(231, 76, 60, 0.65);
+    border-radius: 3px;
+    z-index: 3;
+  }
   /* Maintainer row styling */
   .person.maintainer .label {
     border-left: 3px solid var(--maintainer);
@@ -490,7 +503,7 @@
   }
 
   /* Make bars hover-targetable (override pointer-events: none) */
-  .wake, .peak { pointer-events: auto; cursor: help; }
+  .wake, .peak, .busy { pointer-events: auto; cursor: help; }
 
   /* Overlap window strip in the header (best maintainer-overlap window) */
   .overlap-banner {
@@ -574,7 +587,7 @@
 //           Discord 2026-05-21: active 19:20 Austin CDT (02:20 Vienna), a real
 //           gap-filler. Added evening band 18-22 CDT between the two prior peaks.
 const PEOPLE = [
-  { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true },
+  { name: 'Andrew',    city: 'Vienna',   tz: 'Europe/Vienna',      wake: [7, 22], home: true, busy: [{ s: '07:20', e: '08:00', label: 'School drop-off (kids)' }], busyWeekdayOnly: true },
   { name: 'Karl',      city: 'Vienna',   tz: 'Europe/Vienna',      wake: [14, 1],  peak: [[16, 18], [21, 1]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'triage',  weekendDead: true,  lastSeen: '2026-05-21', note: 'Maintainer, Nimbalyst project. GitHub Events 11d: peak 22 CET (27 events), secondary 16-18 CET. 5% weekend (effectively dead). Issues + comments dominant = TRIAGE. Discord 2026-05-21: replying 00:54 Vienna, wake now runs past midnight.' },
   { name: 'Greg',      city: 'Boston',   tz: 'America/New_York',   wake: [8, 20],  peak: [[9, 12], [19, 20]],    project: 'Nimbalyst', maintainer: true, confidence: 'high', role: 'shipper', weekendDead: true,  lastSeen: '2026-05-16', note: 'Maintainer, Nimbalyst project. GitHub Events 3d / 100 events. Peak 11 EDT, secondary 19 EDT. 13% weekend. Push-dominant = SHIPPER role.' },
   { name: 'Alias',     city: 'Brisbane', tz: 'Australia/Brisbane', wake: [8, 22],  peak: [[8, 10], [18, 21]],    confidence: 'med',  role: 'solo',    weekendDead: true,  lastSeen: '2026-05-21', note: 'GitHub Events 23d / 27 push events: evening peak 18-21 Brisbane, push-only = SOLO committer, 7% weekend. Discord 2026-05-21: woke ~08:20 Brisbane, added intermittent morning band 08-10 (single sample, re-evaluate after 3+ sightings).' },
@@ -753,6 +766,18 @@ function isWeekendHome(date) {
   // localPartsIn returns the weekday short name in the home TZ
   const wd = localPartsIn(HOME_TZ, date).weekday;
   return wd === 'Sat' || wd === 'Sun';
+}
+
+// Weekend test in an arbitrary tz (used for busy blocks tied to a person's own
+// local weekday, independent of whose perspective is being viewed).
+function isWeekendTz(tz, date) {
+  const wd = localPartsIn(tz, date).weekday;
+  return wd === 'Sat' || wd === 'Sun';
+}
+
+function hhmmToMin(s) {
+  const [h, m] = s.split(':').map(Number);
+  return h * 60 + (m || 0);
 }
 
 function buildPersonRow(person, date) {
@@ -954,6 +979,27 @@ function buildPersonRow(person, date) {
     }
   }
 
+  // Busy / unavailable blocks (e.g. recurring school run). Drawn last so they
+  // sit over the wake bar. Weekday-only blocks are hidden on Sat/Sun in the
+  // person's OWN tz, regardless of whose perspective is active.
+  if (Array.isArray(person.busy)) {
+    const skipToday = person.busyWeekdayOnly && isWeekendTz(person.tz, date);
+    if (!skipToday) {
+      for (const b of person.busy) {
+        let bs = hhmmToMin(b.s) - offset;
+        let be = hhmmToMin(b.e) - offset;
+        bs = ((bs % 1440) + 1440) % 1440;
+        be = ((be % 1440) + 1440) % 1440;
+        if (be > bs) {
+          appendBusySegment(track, bs, be, person, b);
+        } else {
+          appendBusySegment(track, bs, 1440, person, b);
+          appendBusySegment(track, 0, be, person, b);
+        }
+      }
+    }
+  }
+
   // Per-track crosshair time labels (one per person row, hidden until hover)
   const cursorLabel = document.createElement('div');
   cursorLabel.className = 'crosshair-time';
@@ -1004,6 +1050,24 @@ function appendPeakSegment(track, startMin, endMin, person, peakIdx) {
     seg.dataset.localEnd = String(b).padStart(2, '0') + ':00';
     seg.dataset.note = person.note || '';
   }
+  track.appendChild(seg);
+}
+
+function appendBusySegment(track, startMin, endMin, person, b) {
+  if (endMin <= startMin) return;
+  const leftPct = (startMin / 1440) * 100;
+  const widthPct = ((endMin - startMin) / 1440) * 100;
+  const seg = document.createElement('div');
+  seg.className = 'busy';
+  seg.style.left = leftPct + '%';
+  seg.style.width = widthPct + '%';
+  seg.dataset.kind = 'busy';
+  seg.dataset.person = person.name;
+  seg.dataset.city = person.city;
+  seg.dataset.tz = person.tz;
+  seg.dataset.localStart = b.s;
+  seg.dataset.localEnd = b.e;
+  seg.dataset.label = b.label || 'Unavailable';
   track.appendChild(seg);
 }
 
@@ -1109,6 +1173,17 @@ function updateClocks(date) {
 function showTooltip(target, pageX, pageY) {
   const d = target.dataset;
   if (!d.kind) return;
+  if (d.kind === 'busy') {
+    const title = `${d.person} - Unavailable`;
+    const localLine = `<div class="t-row"><strong>${d.localStart}-${d.localEnd}</strong> ${d.city} local time</div>`;
+    const homeProjection = projectWindowToHome(d.tz, d.localStart, d.localEnd, new Date());
+    const homeLine = `<div class="t-row">= <strong>${homeProjection}</strong> ${homePerson().city} time today</div>`;
+    const reason = d.label ? `<div class="t-source">${d.label} &middot; weekdays</div>` : '';
+    tooltipEl.innerHTML = `<div class="t-title">${title}</div>${localLine}${homeLine}${reason}`;
+    tooltipEl.classList.add('visible');
+    positionTooltip(pageX, pageY);
+    return;
+  }
   const kind = d.kind === 'peak' ? 'Peak window' : 'Wake window';
   const title = `${d.person} - ${kind}`;
   const localLine = `<div class="t-row"><strong>${d.localStart}-${d.localEnd}</strong> ${d.city} local time</div>`;
@@ -1151,7 +1226,7 @@ function projectWindowToHome(tz, localStart, localEnd, date) {
 let trackHoverBound = false;
 function bindHoverInteractions() {
   // Per-bar hover for tooltip
-  for (const bar of timelineEl.querySelectorAll('.wake, .peak')) {
+  for (const bar of timelineEl.querySelectorAll('.wake, .peak, .busy')) {
     bar.addEventListener('mouseenter', (e) => showTooltip(e.currentTarget, e.clientX, e.clientY));
     bar.addEventListener('mousemove',  (e) => positionTooltip(e.clientX, e.clientY));
     bar.addEventListener('mouseleave', hideTooltip);
