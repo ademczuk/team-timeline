@@ -764,8 +764,11 @@ const DEFAULT_HOME = (PEOPLE.find(p => p.home) || PEOPLE[0]).name;
 
 function readHomeTag() {
   const params = new URLSearchParams(location.search);
-  const raw = (params.get('as') || params.get('view') || '').trim().toLowerCase();
+  let raw = (params.get('as') || params.get('view') || '').trim().toLowerCase();
   if (!raw) return null;
+  // Backward-compat aliases so old bookmarks keep resolving after renames.
+  const ALIASES = { alias: 'dee' };
+  if (ALIASES[raw]) raw = ALIASES[raw];
   const match = PEOPLE.find(p => p.name.toLowerCase() === raw);
   return match ? match.name : null;
 }
